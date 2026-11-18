@@ -1,0 +1,1099 @@
+<!doctype html>
+<html lang="th">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>The Unit Cell</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Thai:wght@400;500;600;700&display=swap">
+<style>
+/* Layout concept: one black stage. A single crystal lives on a full-bleed canvas and each slide only moves it, cuts it or re-counts it. */
+:root{
+  color-scheme:dark;
+  --bg:#000; --ink:#f5f5f7; --ink-2:#a9a9b0; --ink-3:#77777e;
+  --hair:rgba(255,255,255,.13); --glass:rgba(28,28,31,.74); --well:rgba(255,255,255,.07);
+  --blue:#2997ff; --ti:#d9d5cb; --cu:#eeaa72; --bl:#74b0ff; --gr:#6bdcc2; --bad:#ff7b72; --good:#5fdc8c;
+  --font:"SF Pro Display","Inter","Noto Sans Thai","Leelawadee UI",system-ui,sans-serif;
+  --pad-x:clamp(16px,6vw,96px);
+  --ease:cubic-bezier(.2,.7,.2,1);
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;overflow:hidden;background:var(--bg);color:var(--ink);font-family:var(--font);-webkit-font-smoothing:antialiased}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer;background:none;border:0;padding:0}
+:focus-visible{outline:2px solid var(--blue);outline-offset:2px;border-radius:6px}
+#stage{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab}
+#stage.drag{cursor:grabbing}
+#progress{position:fixed;inset:0 0 auto;height:2px;z-index:6;background:rgba(255,255,255,.08)}
+#progress i{display:block;height:100%;width:0;background:var(--ink);transition:width .5s var(--ease)}
+
+#deck{position:fixed;inset:0;z-index:2;pointer-events:none;transition:right .4s var(--ease)}
+.slide{position:absolute;inset:0;display:grid;gap:clamp(12px,3vw,48px);
+  padding-block:calc(clamp(28px,6vh,64px) + env(safe-area-inset-top,0px)) calc(92px + env(safe-area-inset-bottom,0px));
+  padding-left:max(var(--pad-x),env(safe-area-inset-left,0px));padding-right:max(var(--pad-x),env(safe-area-inset-right,0px));
+  opacity:0;visibility:hidden;transition:opacity .35s,visibility .35s}
+.slide.on{opacity:1;visibility:visible}
+.split{grid-template-columns:minmax(0,5fr) minmax(0,6fr);align-items:center}
+.center{grid-template-rows:auto minmax(0,1fr);justify-items:center;text-align:center}
+.hole{min-width:0;min-height:0;width:100%;height:100%}
+.copy{pointer-events:auto;min-width:0;max-height:100%;overflow:hidden auto;scrollbar-width:none;display:flex;flex-direction:column;gap:clamp(10px,1.8vh,18px);padding:4px 14px;margin-inline:-14px}
+.copy::-webkit-scrollbar{display:none}
+.slide.on .copy>*{animation:rise .75s var(--ease) both}
+.slide.on .copy>*:nth-child(2){animation-delay:.06s}
+.slide.on .copy>*:nth-child(3){animation-delay:.12s}
+.slide.on .copy>*:nth-child(4){animation-delay:.18s}
+.slide.on .copy>*:nth-child(5){animation-delay:.24s}
+@keyframes rise{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+
+.eyebrow{margin:0;font-size:clamp(14px,1.25vw,18px);font-weight:600;color:var(--ink-2);letter-spacing:.01em}
+h1,h2{margin:0;font-weight:700;text-wrap:balance;letter-spacing:-.018em}
+h1{font-size:clamp(60px,min(10.5vw,17vh),150px);line-height:1.16;
+  background:linear-gradient(180deg,#fff 30%,#8e8e96 100%);-webkit-background-clip:text;background-clip:text;color:transparent;padding-bottom:.06em}
+h2{font-size:clamp(30px,min(4.1vw,7.2vh),60px);line-height:1.22}
+.lead{margin:0;font-size:clamp(17px,min(1.6vw,2.9vh),24px);line-height:1.5;color:var(--ink-2);max-width:34em;text-wrap:pretty}
+.cta{display:flex;gap:22px;align-items:center;justify-content:center;flex-wrap:wrap}
+.btn{background:var(--blue);color:#fff;font-weight:600;font-size:17px;padding:12px 24px;border-radius:999px;transition:filter .2s,transform .2s}
+.btn:hover{filter:brightness(1.12)}.btn:active{transform:scale(.97)}
+.link{color:var(--blue);font-size:17px;font-weight:500}
+.link:hover{text-decoration:underline}
+
+.rows{display:flex;flex-direction:column;gap:2px}
+.row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 18px;align-items:center;width:100%;text-align:left;padding:clamp(7px,1.25vh,13px) 14px;margin-inline:-14px;width:calc(100% + 28px);border-radius:14px;opacity:.52;transition:opacity .35s,background .35s}
+.row.on{opacity:.82}.row.cur{opacity:1;background:var(--well)}
+.row:hover{opacity:1}
+.row b{font-size:clamp(15px,1.25vw,18px);font-weight:600}
+.row small{grid-column:1;font-size:clamp(13px,1vw,15px);color:var(--ink-2);line-height:1.4}
+.row .m{grid-column:2;grid-row:1/span 2;font-size:clamp(17px,min(1.65vw,3vh),25px);font-weight:600;white-space:nowrap;font-variant-numeric:tabular-nums}
+.fr{display:inline-grid;vertical-align:middle;text-align:center;font-size:.72em;line-height:1.15;margin-inline:.12em}
+.fr>*{font-style:normal;font-weight:600}.fr>*:first-child{border-bottom:1.5px solid currentColor;padding:0 .3em .06em}.fr>*:last-child{padding-top:.06em}
+
+.stat{display:flex;align-items:baseline;gap:14px;line-height:1}
+.stat strong{font-size:clamp(60px,min(8.4vw,15vh),128px);font-weight:700;letter-spacing:-.03em;font-variant-numeric:tabular-nums;
+  background:linear-gradient(120deg,var(--c,#fff),#fff 85%);-webkit-background-clip:text;background-clip:text;color:transparent}
+.stat span{color:var(--ink-2);font-size:clamp(14px,1.2vw,17px);line-height:1.35}
+.formula{font-size:clamp(24px,min(3vw,5.4vh),44px);font-weight:600;display:flex;align-items:center;gap:.4em;flex-wrap:wrap}
+.formula .fr{font-size:.74em}
+.tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.tile{background:var(--well);border-radius:14px;padding:10px 12px;display:flex;flex-direction:column;gap:2px}
+.tile b{font-size:clamp(22px,2.2vw,32px);font-weight:600}.tile span{font-size:13px;color:var(--ink-2)}
+
+.seg{display:inline-flex;background:var(--well);border-radius:11px;padding:3px;gap:2px;max-width:100%}
+.seg button{padding:7px 14px;border-radius:9px;font-size:14px;font-weight:600;color:var(--ink-2);transition:background .2s,color .2s;white-space:nowrap}
+.seg button[aria-pressed=true]{background:#fff;color:#000}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{padding:6px 12px;border-radius:999px;background:var(--well);font-size:14px;font-weight:600;color:var(--ink-2);transition:background .2s,color .2s;font-variant-numeric:tabular-nums}
+.chip:hover{color:var(--ink)}.chip[aria-pressed=true]{background:var(--ink);color:#000}
+.letters{display:flex;gap:8px;align-items:center;font-size:clamp(24px,2.6vw,36px);font-weight:700}
+.letters i{font-style:normal;transition:color .3s}
+.field{display:grid;grid-template-columns:minmax(0,1fr) 84px;gap:4px 12px;align-items:center}
+.field label{font-size:14px;color:var(--ink-2)}
+.field input[type=number]{grid-column:2;grid-row:1/span 2;width:100%;text-align:right;background:var(--well);border:0;border-radius:9px;padding:7px 9px;font-size:15px;font-weight:600;font-variant-numeric:tabular-nums}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:22px;background:transparent;margin:0;cursor:pointer}
+input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:4px;background:rgba(255,255,255,.2)}
+input[type=range]::-moz-range-track{height:4px;border-radius:4px;background:rgba(255,255,255,.2)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:#fff;margin-top:-8px;box-shadow:0 1px 5px rgba(0,0,0,.5)}
+input[type=range]::-moz-range-thumb{width:20px;height:20px;border:0;border-radius:50%;background:#fff}
+.chart{width:100%;height:auto;display:block;max-height:24vh}
+.note{margin:0;font-size:14px;line-height:1.5;color:var(--ink-2);min-height:3em}
+
+.results{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.res{background:var(--well);border-radius:14px;padding:10px 12px;min-width:0}
+.res span{display:block;font-size:12.5px;color:var(--ink-2)}.res b{font-size:clamp(17px,1.6vw,22px);font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+.res.big{grid-column:span 3;display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+.res.big b{font-size:clamp(34px,4vw,56px);letter-spacing:-.02em}.res.big em{font-style:normal;color:var(--ink-2);font-size:14px}
+
+#s-compare{grid-template-rows:auto minmax(0,1fr);gap:clamp(8px,2vh,24px)}
+#s-compare .copy{text-align:center;align-items:center}
+.cmp{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:clamp(8px,2vw,28px);min-height:0;pointer-events:auto}
+.card{display:grid;grid-template-rows:minmax(0,1fr) auto;gap:10px;min-height:0;min-width:0}
+.mini{min-height:0}
+.card h3{margin:0;font-size:clamp(15px,1.5vw,21px);font-weight:600}
+.card .pct{font-size:clamp(30px,3.6vw,54px);font-weight:700;letter-spacing:-.02em;line-height:1.1;font-variant-numeric:tabular-nums}
+.track{height:5px;border-radius:5px;background:rgba(255,255,255,.14);margin:6px 0 10px;overflow:hidden}
+.track i{display:block;height:100%;border-radius:5px;background:var(--c);transform-origin:left;transition:transform 1s var(--ease)}
+.slide:not(.on) .track i{transform:scaleX(0)}
+.kv{display:grid;grid-template-columns:auto minmax(0,1fr);gap:3px 12px;margin:0;font-size:clamp(12.5px,1vw,15px)}
+.kv dt{color:var(--ink-2)}.kv dd{margin:0;text-align:right;font-weight:600;font-variant-numeric:tabular-nums}
+
+.opts{display:grid;gap:8px}
+.opt{text-align:left;padding:13px 16px;border-radius:14px;background:var(--well);font-size:clamp(15px,1.25vw,18px);font-weight:500;line-height:1.4;transition:background .2s,opacity .2s}
+.opt:hover:not(:disabled){background:rgba(255,255,255,.14)}.opt:disabled{cursor:default;opacity:.5}
+.opt.right{background:rgba(95,220,140,.2);opacity:1;color:var(--good)}.opt.wrong{background:rgba(255,123,114,.18);opacity:1;color:var(--bad)}
+.qmeta{display:flex;justify-content:space-between;color:var(--ink-2);font-size:14px;font-weight:600}
+#qFeedback{min-height:1.5em}
+
+#bar{position:fixed;z-index:8;left:50%;transform:translateX(-50%);bottom:calc(18px + env(safe-area-inset-bottom,0px));display:flex;align-items:center;gap:2px;padding:5px;border-radius:999px;background:var(--glass);backdrop-filter:saturate(180%) blur(22px);-webkit-backdrop-filter:saturate(180%) blur(22px);border:1px solid var(--hair);max-width:calc(100vw - 24px)}
+#bar button{height:38px;min-width:38px;border-radius:999px;display:grid;place-items:center;color:var(--ink);transition:background .2s}
+#bar button:hover{background:rgba(255,255,255,.12)}
+#bar button[aria-pressed=true]{background:var(--ink);color:#000}
+#bar svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+#where{padding-inline:12px!important;display:flex!important;gap:9px;align-items:center;font-size:14px;font-weight:500;white-space:nowrap;max-width:44vw}
+#where span{overflow:hidden;text-overflow:ellipsis}#where em{font-style:normal;color:var(--ink-2);font-variant-numeric:tabular-nums}
+#pips{display:flex;gap:4px}#pips i{width:5px;height:5px;border-radius:50%;background:rgba(255,255,255,.28);transition:background .25s}#pips i.on{background:var(--ink)}
+.sep{width:1px;height:20px;background:var(--hair);margin-inline:3px}
+
+#menu{position:fixed;z-index:9;left:50%;bottom:calc(76px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);width:min(340px,calc(100vw - 24px));max-height:min(62vh,520px);overflow-y:auto;padding:6px;border-radius:18px;background:var(--glass);backdrop-filter:saturate(180%) blur(26px);-webkit-backdrop-filter:saturate(180%) blur(26px);border:1px solid var(--hair)}
+#menu button{display:flex;gap:12px;width:100%;padding:9px 12px;border-radius:11px;font-size:15px;text-align:left}
+#menu button:hover{background:rgba(255,255,255,.1)}#menu button[aria-current=true]{background:var(--ink);color:#000}
+#menu em{font-style:normal;width:1.6em;opacity:.6;font-variant-numeric:tabular-nums}
+
+#inspector{position:fixed;z-index:7;top:0;right:0;bottom:0;width:360px;padding:calc(18px + env(safe-area-inset-top,0px)) max(18px,env(safe-area-inset-right,0px)) calc(24px + env(safe-area-inset-bottom,0px)) 18px;overflow-y:auto;background:var(--glass);backdrop-filter:saturate(180%) blur(28px);-webkit-backdrop-filter:saturate(180%) blur(28px);border-left:1px solid var(--hair);transform:translateX(102%);visibility:hidden;transition:transform .4s var(--ease),visibility .4s;display:flex;flex-direction:column;gap:16px}
+body.insp #inspector{transform:none;visibility:visible}
+body.insp #deck{right:360px}
+.ihead{display:flex;justify-content:space-between;align-items:center}
+.ihead h3{margin:0;font-size:20px;font-weight:700}
+.ihead button{color:var(--blue);font-size:15px;font-weight:500}
+.readout{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.readout div{background:var(--well);border-radius:11px;padding:8px 9px;min-width:0}
+.readout span{display:block;font-size:11.5px;color:var(--ink-2)}.readout b{font-size:16px;font-weight:600;font-variant-numeric:tabular-nums}
+.igroup{display:flex;flex-direction:column;gap:9px}
+.igroup h4{margin:0;font-size:13px;font-weight:600;color:var(--ink-2)}
+.ctl{display:grid;grid-template-columns:minmax(0,1fr) 72px;gap:0 10px;align-items:center;transition:opacity .2s}
+.ctl.off{opacity:.34;pointer-events:none}
+.ctl label{font-size:13.5px}
+.ctl input[type=number]{grid-column:2;grid-row:1/span 2;width:100%;background:var(--well);border:0;border-radius:8px;padding:6px 7px;text-align:right;font-size:13.5px;font-weight:600;font-variant-numeric:tabular-nums;-moz-appearance:textfield}
+.ctl input[type=number]::-webkit-inner-spin-button{display:none}
+.views{display:flex;flex-wrap:wrap;gap:5px}
+
+/* structure slides carry five build rows, so their numbers and rows sit a little tighter */
+#structSlides .copy{gap:clamp(8px,1.5vh,18px)}
+#structSlides .stat strong{font-size:clamp(52px,min(7.4vw,11vh),118px)}
+#structSlides .row{padding-block:clamp(5px,.9vh,12px)}
+
+#s-studio{grid-template-rows:auto minmax(0,1fr);gap:6px}
+#s-studio .hole{grid-row:2}
+#s-studio .copy{grid-row:1;gap:4px}
+#s-studio h2{font-size:clamp(26px,min(3vw,5vh),40px)}
+#s-studio .lead{font-size:15px;max-width:none}
+
+@media (max-width:640px),(max-aspect-ratio:1/1){
+  .split{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(170px,1fr) auto;align-items:stretch;gap:10px}
+  .split .hole{grid-row:1}.split .copy{grid-row:2;max-height:60dvh}
+  .slide{padding-block-end:calc(80px + env(safe-area-inset-bottom,0px))}
+  h2{font-size:clamp(25px,7vw,36px)}
+  .stat strong{font-size:clamp(46px,14vw,72px)}
+  .row{padding-block:6px}
+  .cmp{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 14px}
+  .card{grid-template-rows:minmax(58px,1fr) auto;gap:4px}
+  .card .pct{font-size:26px}.kv{display:none}.track{margin:3px 0 0}
+  #inspector{top:auto;left:0;right:0;width:auto;height:64dvh;border-left:0;border-top:1px solid var(--hair);border-radius:20px 20px 0 0;transform:translateY(102%);padding-left:max(18px,env(safe-area-inset-left,0px))}
+  body.insp #deck{right:0;bottom:64dvh}
+  body.insp .slide .copy{display:none}
+  body.insp #bar{display:none}
+  #where{max-width:40vw}
+  .tiles{grid-template-columns:repeat(4,minmax(0,1fr));gap:5px}.tile{padding:7px 8px}.tile b{font-size:20px}.tile span{font-size:11.5px}
+  .chart{max-height:17vh}
+}
+@media (prefers-reduced-motion:reduce){
+  .slide.on .copy>*{animation:none}
+  .slide,#deck,#inspector,.track i,#progress i{transition:none}
+}
+</style>
+
+<canvas id="stage" aria-label="แบบจำลองสามมิติของหน่วยเซลล์ ลากเพื่อหมุน"></canvas>
+<div id="progress"><i></i></div>
+
+<main id="deck">
+  <section class="slide center" id="s-intro">
+    <div class="copy" style="align-items:center">
+      <p class="eyebrow">Materials Science · Crystal Structure</p>
+      <h1>หน่วยเซลล์</h1>
+      <p class="lead">กล่องเล็กๆ ของอะตอม ที่บอกว่าโลหะเรียงตัวแน่นแค่ไหน</p>
+      <div class="cta"><button class="btn" data-go="next">เริ่มนำเสนอ</button><button class="link" data-go="studio">เปิด Studio ›</button></div>
+    </div>
+    <div class="hole" data-hole></div>
+  </section>
+
+  <section class="slide split" id="s-repeat">
+    <div class="copy">
+      <p class="eyebrow">จุดเริ่มต้น</p>
+      <h2>ผลึกคือแบบแผนเดียว ที่ซ้ำไปทั้งก้อน</h2>
+      <div class="rows">
+        <button class="row" data-step="0"><b>โครงผลึก</b><small>อะตอมเรียงเป็นระเบียบทั้งสามมิติ</small></button>
+        <button class="row" data-step="1"><b>เลือกหนึ่งกล่อง</b><small>กล่องเล็กที่สุดที่ยังเก็บแบบแผนไว้ครบ</small></button>
+        <button class="row" data-step="2"><b>หน่วยเซลล์</b><small>เลื่อนกล่องนี้ซ้อนต่อกัน ก็ได้ผลึกทั้งก้อน</small></button>
+      </div>
+    </div>
+    <div class="hole" data-hole></div>
+  </section>
+
+  <section class="slide split" id="s-apf">
+    <div class="copy">
+      <p class="eyebrow">Atomic Packing Factor</p>
+      <h2>อะตอมเต็มกล่องแค่ไหน</h2>
+      <div class="formula">APF = <span class="fr"><span>ปริมาตรอะตอมในเซลล์</span><span>ปริมาตรเซลล์</span></span></div>
+      <div class="rows">
+        <button class="row" data-step="0"><b>ปริมาตรอะตอม</b><small>มองอะตอมเป็นทรงกลมแข็งรัศมี R</small><span class="m">n · <span class="fr"><span>4</span><span>3</span></span>πR³</span></button>
+        <button class="row" data-step="1"><b>ปริมาตรเซลล์</b><small>กล่องลูกบาศก์ด้านยาว a</small><span class="m">a³</span></button>
+        <button class="row" data-step="2"><b>ตัวอย่าง FCC</b><small>อีก 26% ของกล่องคือช่องว่าง</small><span class="m">0.74</span></button>
+      </div>
+    </div>
+    <div class="hole" data-hole></div>
+  </section>
+
+  <section class="slide split" id="s-count">
+    <div class="copy">
+      <p class="eyebrow">การนับอะตอม</p>
+      <h2>อะตอมหนึ่งลูก ใช้ร่วมกันหลายเซลล์</h2>
+      <div class="tiles">
+        <div class="tile"><b>⅛</b><span>มุม</span></div><div class="tile"><b>¼</b><span>ขอบ</span></div>
+        <div class="tile"><b>½</b><span>หน้า</span></div><div class="tile"><b>1</b><span>ภายใน</span></div>
+      </div>
+      <div class="rows">
+        <button class="row" data-step="0"><b>อะตอมเต็มลูก</b><small>FCC มีอะตอมอยู่ 14 ตำแหน่ง</small><span class="m">8 + 6</span></button>
+        <button class="row" data-step="1"><b>ตัดตามขอบเซลล์</b><small>เก็บเฉพาะส่วนที่อยู่ในกล่อง</small><span class="m">8×⅛ + 6×½</span></button>
+        <button class="row" data-step="2"><b>แยกชิ้นออกมา</b><small>มุมเหลือ 8 ชิ้นเล็ก หน้าเหลือ 6 ชิ้นครึ่งลูก</small></button>
+        <button class="row" data-step="3"><b>ประกอบกลับ</b><small>ทุกชิ้นรวมกันได้อะตอมเต็มลูกพอดี</small><span class="m">n = 4</span></button>
+      </div>
+    </div>
+    <div class="hole" data-hole></div>
+  </section>
+
+  <div id="structSlides" style="display:contents"></div>
+
+  <section class="slide split" id="s-ratio">
+    <div class="copy">
+      <p class="eyebrow">อัตราส่วนของ HCP</p>
+      <h2>c/a = 1.633 คือจุดที่แน่นที่สุด</h2>
+      <div class="stat" style="--c:var(--gr)"><strong id="raApf">74.0%</strong><span>APF ที่<br>c/a = <b id="raVal">1.633</b></span></div>
+      <svg class="chart" id="raChart" viewBox="0 0 460 190" role="img" aria-label="กราฟ APF เทียบกับอัตราส่วน c/a มีค่าสูงสุดที่ 1.633"></svg>
+      <div class="field"><label for="raSlider">ลากเพื่อเปลี่ยน c/a</label><input type="number" id="raNum" min="1.4" max="2" step="0.001" aria-label="ค่า c/a"><input type="range" id="raSlider" min="1.4" max="2" step="0.001"></div>
+      <div class="chips" id="raChips"></div>
+      <p class="note" id="raNote"></p>
+    </div>
+    <div class="hole" data-hole></div>
+  </section>
+
+  <section class="slide split" id="s-stacking">
+    <div class="copy">
+      <p class="eyebrow">ลำดับการซ้อนชั้น</p>
+      <h2>FCC กับ HCP ต่างกันที่ชั้นที่สาม</h2>
+      <div class="seg" role="group" aria-label="เลือกลำดับการซ้อน">
+        <button id="seqH" data-seq="ABAB">ABAB · HCP</button><button id="seqF" data-seq="ABCA">ABCABC · FCC</button>
+      </div>
+      <div class="letters" id="letters" aria-live="polite"></div>
+      <div class="rows">
+        <button class="row" data-step="0"><b>ชั้น A</b><small>ระนาบอัดแน่น อะตอมหนึ่งลูกแตะเพื่อนบ้าน 6 ลูก</small></button>
+        <button class="row" data-step="1"><b>ชั้น B</b><small>วางลงในหลุมของชั้น A</small></button>
+        <button class="row" data-step="2"><b>ชั้นที่สาม</b><small id="thirdNote"></small></button>
+        <button class="row" data-step="3"><b>ความแน่นเท่ากัน</b><small>ทั้งสองแบบได้ APF 0.74 และ CN 12</small><span class="m">0.74</span></button>
+      </div>
+    </div>
+    <div class="hole" data-hole></div>
+  </section>
+
+  <section class="slide" id="s-compare">
+    <div class="copy"><p class="eyebrow">สรุปทั้งสี่โครงสร้าง</p><h2>ยิ่งอัดแน่น ช่องว่างยิ่งน้อย</h2></div>
+    <div class="cmp" id="cmp"></div>
+  </section>
+
+  <section class="slide split" id="s-density">
+    <div class="copy">
+      <p class="eyebrow">จากเซลล์สู่ของจริง</p>
+      <h2>คำนวณความหนาแน่นจากหนึ่งเซลล์</h2>
+      <div class="formula" style="font-size:clamp(20px,2.2vw,32px)">ρ = <span class="fr"><span>n · A</span><span>V<sub>C</sub> · N<sub>A</sub></span></span></div>
+      <div class="chips" id="elChips"></div>
+      <div class="field"><label for="elR" id="elLabel"></label><input type="number" id="elRn" min="0.1" max="0.2" step="0.001" aria-label="รัศมีอะตอมเป็นนาโนเมตร"><input type="range" id="elR" min="0.1" max="0.2" step="0.001"></div>
+      <div class="results" id="elOut"></div>
+    </div>
+    <div class="hole" data-hole></div>
+  </section>
+
+  <section class="slide split" id="s-quiz">
+    <div class="copy">
+      <p class="eyebrow">ทดสอบความเข้าใจ</p>
+      <div class="qmeta"><span id="qNo"></span><span id="qScore"></span></div>
+      <h2 id="qText" style="font-size:clamp(24px,min(2.8vw,5vh),40px)"></h2>
+      <div class="opts" id="qOpts"></div>
+      <p class="note" id="qFeedback" aria-live="polite"></p>
+      <div><button class="btn" id="qNext" hidden>ข้อถัดไป</button></div>
+    </div>
+    <div class="hole" data-hole></div>
+  </section>
+
+  <section class="slide" id="s-studio">
+    <div class="copy">
+      <p class="eyebrow">Studio</p>
+      <h2>ปรับได้ทุกค่า</h2>
+      <p class="lead">ลากเพื่อหมุน ใช้นิ้วหรือ Ctrl + ล้อเมาส์เพื่อซูม แล้วพิมพ์ค่าที่ต้องการได้ในแผงควบคุม</p>
+    </div>
+    <div class="hole" data-hole></div>
+  </section>
+</main>
+
+<aside id="inspector" aria-label="แผงควบคุม">
+  <div class="ihead"><h3>ปรับละเอียด</h3><button id="iReset">รีเซ็ต</button></div>
+  <div class="seg" id="iStruct" role="group" aria-label="เลือกโครงสร้าง" style="align-self:flex-start"></div>
+  <div class="readout">
+    <div><span>n</span><b id="rN">4</b></div><div><span>a / R</span><b id="rA">2.828</b></div>
+    <div><span>V / R³</span><b id="rV">22.63</b></div><div><span>APF</span><b id="rF">0.740</b></div>
+  </div>
+  <div id="iGroups" style="display:flex;flex-direction:column;gap:18px"></div>
+</aside>
+
+<div id="menu" hidden></div>
+<nav id="bar" aria-label="ควบคุมการนำเสนอ">
+  <button id="prev" aria-label="ก่อนหน้า"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+  <button id="where" aria-haspopup="true" aria-expanded="false" aria-label="รายการสไลด์"><em id="wNum"></em><span id="wName"></span><div id="pips"></div></button>
+  <button id="next" aria-label="ถัดไป"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
+  <div class="sep"></div>
+  <button id="tInsp" aria-label="แผงปรับละเอียด (C)" aria-pressed="false" title="แผงปรับละเอียด (C)"><svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg></button>
+  <button id="tFull" aria-label="เต็มจอ (F)" title="เต็มจอ (F)"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+</nav>
+
+<script>
+(function(){
+'use strict';
+/* ---------- maths helpers ---------- */
+const TAU=Math.PI*2, SQ2=Math.SQRT2, SQ3=Math.sqrt(3), IDEAL=Math.sqrt(8/3), NA=6.022e23;
+const clamp=(x,a=0,b=1)=>Math.min(b,Math.max(a,x));
+const mix=(a,b,t)=>a+(b-a)*t;
+const smooth=(a,b,x)=>{const t=clamp((x-a)/(b-a));return t*t*(3-2*t)};
+const ease=t=>t*t*(3-2*t);
+const wrap=d=>((d+180)%360+360)%360-180;
+const norm=v=>{const l=Math.hypot(v[0],v[1],v[2])||1;return[v[0]/l,v[1]/l,v[2]/l]};
+const $=id=>document.getElementById(id);
+const reduced=matchMedia('(prefers-reduced-motion:reduce)').matches;
+
+/* ---------- crystal data ---------- */
+const INFO={
+  SC:{name:'Simple Cubic',th:'ลูกบาศก์อย่างง่าย',n:1,cn:6,aR:2,apf:Math.PI/6,c:'#d9d5cb',tint:[200,195,180],metals:'Po',
+    lead:'อะตอมอยู่ที่มุมทั้งแปดเท่านั้น ช่องว่างจึงเหลือมากที่สุด',touch:'อะตอมแตะกันตามขอบเซลล์',aM:'a = 2R',
+    cnt:'8 มุม × ⅛',cntM:'n = 1',sec:'ผ่าตามหน้าเซลล์ (100) เห็นวงกลมสี่วงแตะกันที่กลางขอบ',secM:'R + R = a',cnN:'แตะกันบน ล่าง ซ้าย ขวา หน้า หลัง',
+    apfM:'<span class="fr"><span>1 · (4/3)πR³</span><span>(2R)³</span></span> = 0.52'},
+  BCC:{name:'Body-Centered Cubic',th:'ลูกบาศก์กลางตัว',n:2,cn:8,aR:4/SQ3,apf:SQ3*Math.PI/8,c:'#eeaa72',tint:[238,160,100],metals:'Fe-α, Cr, W, Mo',
+    lead:'เพิ่มอะตอมหนึ่งลูกตรงกลางกล่อง ความแน่นเพิ่มขึ้นทันที',touch:'อะตอมแตะกันตามเส้นทแยงมุมลำตัว',aM:'a = <span class="fr"><span>4R</span><span>√3</span></span>',
+    cnt:'8 มุม × ⅛ + 1 กลาง',cntM:'n = 2',sec:'ผ่าตามระนาบ (110) เห็นอะตอมกลางแตะมุมตามเส้นทแยง',secM:'R + 2R + R = a√3',cnN:'อะตอมกลางแตะมุมทั้งแปด',
+    apfM:'<span class="fr"><span>2 · (4/3)πR³</span><span>(4R/√3)³</span></span> = 0.68'},
+  FCC:{name:'Face-Centered Cubic',th:'ลูกบาศก์กลางหน้า',n:4,cn:12,aR:2*SQ2,apf:Math.PI/(3*SQ2),c:'#74b0ff',tint:[90,150,255],metals:'Cu, Al, Ni, Au, Ag, Pb',
+    lead:'อะตอมกลางทุกหน้า ทำให้ลูกบาศก์แน่นถึงขีดสุดของทรงกลมเท่ากัน',touch:'อะตอมแตะกันตามเส้นทแยงมุมหน้า',aM:'a = 2√2 R',
+    cnt:'8 มุม × ⅛ + 6 หน้า × ½',cntM:'n = 4',sec:'ผ่าตามหน้าเซลล์ (100) เห็นอะตอมกลางหน้าแตะมุมทั้งสี่',secM:'R + 2R + R = a√2',cnN:'แตะกันทั้งในชั้น เหนือชั้น และใต้ชั้น',
+    apfM:'<span class="fr"><span>4 · (4/3)πR³</span><span>(2√2 R)³</span></span> = 0.74'},
+  HCP:{name:'Hexagonal Close-Packed',th:'หกเหลี่ยมอัดแน่น',n:6,cn:12,aR:2,apf:Math.PI/(3*SQ2),c:'#6bdcc2',tint:[80,210,180],metals:'Mg, Ti, Zn, Co',
+    lead:'ปริซึมหกเหลี่ยมที่แน่นเท่า FCC ด้วยการซ้อนชั้นคนละลำดับ',touch:'a = 2R และ c สูง 1.633 เท่าของ a',aM:'c/a = 1.633',
+    cnt:'12 มุม × ⅙ + 2 หน้า × ½ + 3 ภายใน',cntM:'n = 6',sec:'ผ่าตามระนาบฐาน (0001) เห็นหกลูกล้อมหนึ่งลูก',secM:'R + R = a',cnN:'6 ในชั้น 3 เหนือชั้น 3 ใต้ชั้น',
+    apfM:'<span class="fr"><span>6 · (4/3)πR³</span><span>(3√3/2) a²c</span></span> = 0.74'}
+};
+const ELEMENTS=[
+  {s:'Cu',k:'FCC',R:.128,A:63.55,rho:8.94},{s:'Al',k:'FCC',R:.143,A:26.98,rho:2.71},{s:'Au',k:'FCC',R:.144,A:196.97,rho:19.32},{s:'Ag',k:'FCC',R:.144,A:107.87,rho:10.49},
+  {s:'Fe',k:'BCC',R:.124,A:55.85,rho:7.87},{s:'W',k:'BCC',R:.137,A:183.84,rho:19.3},{s:'Cr',k:'BCC',R:.125,A:52,rho:7.19},
+  {s:'Mg',k:'HCP',R:.160,A:24.31,rho:1.74,ca:1.624},{s:'Ti',k:'HCP',R:.145,A:47.87,rho:4.51,ca:1.587},{s:'Zn',k:'HCP',R:.133,A:65.41,rho:7.13,ca:1.856},
+  {s:'Po',k:'SC',R:.168,A:209,rho:9.2}
+];
+function hcpR(a,c){return Math.min(a/2,Math.sqrt(a*a/3+c*c/4)/2)}
+function hcpAPF(ca){const R=hcpR(1,ca);return 6*(4/3)*Math.PI*R*R*R/((3*SQ3/2)*ca)}
+
+/* ---------- geometry of one scene ---------- */
+const CUBIC_BASIS={SC:[[0,0,0]],BCC:[[0,0,0],[.5,.5,.5]],FCC:[[0,0,0],[.5,.5,0],[.5,0,.5],[0,.5,.5]]};
+function boxGeom(x0,x1,y0,y1,z0,z1){
+  const v=[[x0,y0,z0],[x1,y0,z0],[x1,y1,z0],[x0,y1,z0],[x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1]];
+  const e=[[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]].map(([a,b])=>[v[a],v[b]]);
+  const f=[[[0,0,-1],[0,3,2,1]],[[0,0,1],[4,5,6,7]],[[-1,0,0],[0,4,7,3]],[[1,0,0],[1,2,6,5]],[[0,-1,0],[0,1,5,4]],[[0,1,0],[3,7,6,2]]].map(([n,q])=>({n,pts:q.map(i=>v[i])}));
+  return{edges:e,faces:f};
+}
+function buildCubic(k,rep){
+  const [nx,ny,nz]=rep,R={SC:.5,BCC:SQ3/4,FCC:SQ2/4}[k],e=1e-6,seen=new Set(),atoms=[];
+  const fx=-nx/2+Math.floor((nx-1)/2),fy=-ny/2+Math.floor((ny-1)/2),fz=-nz/2+Math.floor((nz-1)/2);
+  for(let i=0;i<=nx;i++)for(let j=0;j<=ny;j++)for(let m=0;m<=nz;m++)for(const b of CUBIC_BASIS[k]){
+    const f=[i+b[0],j+b[1],m+b[2]];
+    if(f[0]>nx+e||f[1]>ny+e||f[2]>nz+e)continue;
+    const key=f.join(',');if(seen.has(key))continue;seen.add(key);
+    const p=[f[0]-nx/2,f[1]-ny/2,f[2]-nz/2];
+    const halves=b.filter(x=>x===.5).length;
+    const mat=halves===0?'ti':(k==='BCC'?'cu':'bl');
+    const inF=p[0]>=fx-e&&p[0]<=fx+1+e&&p[1]>=fy-e&&p[1]<=fy+1+e&&p[2]>=fz-e&&p[2]<=fz+1+e;
+    let slot=0;
+    if(k==='BCC'&&halves)slot=1;
+    if(k==='FCC'&&halves)slot=b[2]===0?1:b[1]===0?2:3;
+    atoms.push({p,mat,slot,inF});
+  }
+  const planes=[[1,0,0,nx/2],[-1,0,0,nx/2],[0,1,0,ny/2],[0,-1,0,ny/2],[0,0,1,nz/2],[0,0,-1,nz/2]].map(a=>({n:a.slice(0,3),d:a[3]}));
+  const box=boxGeom(-nx/2,nx/2,-ny/2,ny/2,-nz/2,nz/2),fb=boxGeom(fx,fx+1,fy,fy+1,fz,fz+1);
+  const single=nx===1&&ny===1&&nz===1;
+  const o={SC:{quad:[[-.5,-.5,.5],[.5,-.5,.5],[.5,.5,.5],[-.5,.5,.5]],lines:[{a:[-.5,-.5,.5],b:[.5,-.5,.5],t:'a = 2R',m:[.5]}]},
+    BCC:{quad:[[-.5,-.5,.5],[.5,-.5,-.5],[.5,.5,-.5],[-.5,.5,.5]],lines:[{a:[-.5,-.5,.5],b:[.5,.5,-.5],t:'a√3 = 4R',m:[.25,.75]}]},
+    FCC:{quad:[[-.5,-.5,.5],[.5,-.5,.5],[.5,.5,.5],[-.5,.5,.5]],lines:[{a:[-.5,-.5,.5],b:[.5,.5,.5],t:'a√2 = 4R',m:[.25,.75]}]}}[k];
+  return{kind:'cubic',k,a:1,c:1,R,atoms,planes,edges:box.edges,faces:box.faces,focusEdges:fb.edges,single,slots:single?{SC:1,BCC:2,FCC:4}[k]:0,n:INFO[k].n,vol:1,bound:.5*Math.hypot(nx,ny,nz)+.2,overlay:single?o:null};
+}
+function buildHex(rep,ca){
+  const a=.62,c=a*ca,R=hcpR(a,c),rings=rep[0]-1,layers=rep[1],seen=new Map(),edgeSeen=new Set(),edges=[],focusEdges=[];
+  const hexAt=(cx,cz,r,ang)=>[cx+r*Math.cos(ang),cz+r*Math.sin(ang)];
+  const add=(x,y,z,mat,slot,inF,cap)=>{const key=[x,y,z].map(v=>Math.round(v*1e4)).join(',');const o=seen.get(key);if(o){o.inF=o.inF||inF;return}seen.set(key,{p:[x,y,z],mat,slot,inF,cap:!!cap})};
+  const addEdge=(p,q,list)=>{const ks=[p,q].map(v=>v.map(n=>Math.round(n*1e4)).join(',')).sort().join('|');if(list===focusEdges){list.push([p,q]);return}if(edgeSeen.has(ks))return;edgeSeen.add(ks);list.push([p,q])};
+  const y0=-layers*c/2,fy=y0+Math.floor((layers-1)/2)*c;
+  for(let q=-rings;q<=rings;q++)for(let r=-rings;r<=rings;r++){
+    if(Math.abs(q+r)>rings)continue;
+    const cx=q*1.5*a+0,cz=(q*SQ3/2+r*SQ3)*a,isC=q===0&&r===0;
+    for(let l=0;l<layers;l++){
+      const yb=y0+l*c,yt=yb+c,inFocus=isC&&Math.abs(yb-fy)<1e-6;
+      for(const y of[yb,yt]){
+        add(cx,y,cz,'ti',2,inFocus);
+        for(let i=0;i<6;i++){const[x,z]=hexAt(cx,cz,a,i*Math.PI/3);add(x,y,z,'ti',i%2,inFocus)}
+      }
+      for(let i=0;i<3;i++){const[x,z]=hexAt(cx,cz,a/SQ3,Math.PI/2+i*TAU/3);add(x,yb+c/2,z,'gr',3+i,inFocus)}
+      for(let i=0;i<6;i++){
+        const[x1,z1]=hexAt(cx,cz,a,i*Math.PI/3),[x2,z2]=hexAt(cx,cz,a,(i+1)*Math.PI/3);
+        const list=edges;
+        addEdge([x1,yb,z1],[x2,yb,z2],list);addEdge([x1,yt,z1],[x2,yt,z2],list);addEdge([x1,yb,z1],[x1,yt,z1],list);
+        if(inFocus){focusEdges.push([[x1,yb,z1],[x2,yb,z2]],[[x1,yt,z1],[x2,yt,z2]],[[x1,yb,z1],[x1,yt,z1]])}
+      }
+    }
+  }
+  const single=rings===0&&layers===1,planes=[],faces=[];
+  if(single){
+    for(let i=0;i<3;i++){const[x,z]=hexAt(0,0,2*a/SQ3,Math.PI/2+i*TAU/3+Math.PI);add(x,0,z,'gr',3+i,true,true)}
+    for(let i=0;i<6;i++){const ang=Math.PI/6+i*Math.PI/3;planes.push({n:[Math.cos(ang),0,Math.sin(ang)],d:a*SQ3/2})}
+    planes.push({n:[0,1,0],d:c/2},{n:[0,-1,0],d:c/2});
+    const ring=y=>[0,1,2,3,4,5].map(i=>{const[x,z]=hexAt(0,0,a,i*Math.PI/3);return[x,y,z]});
+    const t=ring(c/2),b=ring(-c/2);
+    faces.push({n:[0,1,0],pts:t},{n:[0,-1,0],pts:b});
+    for(let i=0;i<6;i++){const j=(i+1)%6,ang=Math.PI/6+i*Math.PI/3;faces.push({n:[Math.cos(ang),0,Math.sin(ang)],pts:[b[i],b[j],t[j],t[i]]})}
+  }
+  const v=i=>hexAt(0,0,a,i*Math.PI/3);
+  const overlay=single?{quad:[0,1,2,3,4,5].map(i=>{const[x,z]=v(i);return[x,c/2,z]}),lines:[
+    {a:[v(0)[0],c/2,v(0)[1]],b:[v(1)[0],c/2,v(1)[1]],t:'a = 2R',m:[.5]},
+    {a:[v(0)[0],-c/2,v(0)[1]],b:[v(0)[0],c/2,v(0)[1]],t:'c/a = '+ca.toFixed(3)}]}:null;
+  return{kind:'hex',k:'HCP',a,c,R,atoms:[...seen.values()],planes,edges,faces,focusEdges,single,slots:single?6:0,n:6,vol:(3*SQ3/2)*a*a*c,
+    bound:Math.hypot(a*(1+rings*SQ3),layers*c/2)+.2,overlay};
+}
+const cache=new Map();
+function crystal(k,rep,ca){
+  const key=k+rep.join('')+(k==='HCP'?ca.toFixed(3):'');
+  let m=cache.get(key);
+  if(!m){if(cache.size>60)cache.clear();m=k==='HCP'?buildHex(rep,ca):buildCubic(k,rep);cache.set(key,m)}
+  return m;
+}
+function nnVectors(k){
+  if(k==='SC')return[[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]].map(v=>({v,mat:'ti'}));
+  if(k==='BCC'){const o=[];for(const x of[-1,1])for(const y of[-1,1])for(const z of[-1,1])o.push({v:norm([x,y,z]),mat:'ti'});return o}
+  if(k==='FCC'){const o=[];for(const a of[-1,1])for(const b of[-1,1]){o.push({v:norm([a,b,0]),mat:'bl'},{v:norm([a,0,b]),mat:'bl'},{v:norm([0,a,b]),mat:'bl'})}return o}
+  const o=[];for(let i=0;i<6;i++)o.push({v:[Math.cos(i*Math.PI/3),0,Math.sin(i*Math.PI/3)],mat:'ti'});
+  for(const s of[1,-1])for(let i=0;i<3;i++){const t=Math.PI/2+i*TAU/3;o.push({v:[Math.cos(t)/SQ3,s*Math.sqrt(2/3),Math.sin(t)/SQ3],mat:'gr'})}
+  return o;
+}
+const NN={SC:nnVectors('SC'),BCC:nnVectors('BCC'),FCC:nnVectors('FCC'),HCP:nnVectors('HCP')};
+
+/* ---------- section planes: slice the crystal where neighbouring atoms touch ---------- */
+const PLANES={cubic:[['100','(100)'],['110','(110)'],['111','(111)']],hex:[['0001','(0001)'],['1010','(101̄0)']]};
+const TOUCH={SC:'100',BCC:'110',FCC:'100',HCP:'0001'};
+const FACING={'100':[-20,14],'110':[-31,13],'111':[-38,27],'0001':[-14,44],'1010':[-18,12]};
+const planeKey=(k,key)=>PLANES[k==='HCP'?'hex':'cubic'].some(p=>p[0]===key)?key:TOUCH[k];
+const planeName=(k,key)=>PLANES[k==='HCP'?'hex':'cubic'].find(p=>p[0]===key)[1];
+const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
+function cutPlane(M,rep,s){ /* keeps the half n·q ≤ h; the plane sweeps in from outside the crystal */
+  const key=planeKey(M.k,s.plane),t=ease(clamp(s.section));
+  let n,d;
+  if(key==='100'){n=[0,0,1];d=rep[2]/2}
+  else if(key==='110'){n=[SQ2/2,0,SQ2/2];d=((rep[0]+rep[2])%2?.5:0)/SQ2}
+  else if(key==='111'){n=[1/SQ3,1/SQ3,1/SQ3];d=((rep[0]+rep[1]+rep[2])%2?.5:0)/SQ3}
+  else if(key==='0001'){n=[0,1,0];d=rep[1]*M.c/2}
+  else{n=[0,0,1];d=0}
+  d+=s.secOff*M.a;
+  if(s.flip){n=[-n[0],-n[1],-n[2]];d=-d}
+  return{n,key,t,h:mix(M.bound+M.R+.05,d,t)};
+}
+function planePoly(M,sp){ /* outline of the section plane inside the cell */
+  if(!M.planes.length)return null;
+  const n=sp.n,u=norm(Math.abs(n[1])>.9?[1,0,0]:[n[2],0,-n[0]]),v=cross(n,u),B=M.bound*3;
+  let poly=[[1,1],[-1,1],[-1,-1],[1,-1]].map(([a,b])=>[0,1,2].map(i=>n[i]*sp.h+(u[i]*a+v[i]*b)*B));
+  for(const pl of M.planes){poly=clipPoly(poly,pl.n,pl.d+1e-4);if(poly.length<3)return null}
+  return poly;
+}
+function stackSites(seq){
+  const a=.46,h=a*Math.sqrt(2/3),out=[],lim=.93;
+  const shift={A:[0,0],B:[a/2,a/(2*SQ3)],C:[a,a/SQ3]},mat={A:'ti',B:'bl',C:'cu'};
+  [...seq].forEach((L,l)=>{for(let i=-6;i<=6;i++)for(let j=-6;j<=6;j++){
+    const x=(i+j/2)*a+shift[L][0],z=j*SQ3/2*a+shift[L][1];
+    if(Math.hypot(x,z)<=lim)out.push({p:[x,(l-1.5)*h,z],mat:mat[L],l})}});
+  return{R:a/2,sites:out};
+}
+
+/* ---------- atom sprites: a metal sphere shaded once per finish ---------- */
+const MATS={ti:[.80,.78,.74],cu:[.93,.58,.33],bl:[.28,.50,.94],gr:[.25,.78,.67]};
+const sprites={};
+function dot3(a,b){return a[0]*b[0]+a[1]*b[1]+a[2]*b[2]}
+function shadeSphere(name,size){
+  const cv=document.createElement('canvas');cv.width=cv.height=size;
+  const g=cv.getContext('2d'),img=g.createImageData(size,size),d=img.data,alb=MATS[name];
+  const L=norm([-.45,.72,.53]),K=norm([-.36,.64,.68]),F=norm([.78,.05,.38]);
+  for(let y=0;y<size;y++)for(let x=0;x<size;x++){
+    const nx=(x+.5)/size*2-1,ny=1-(y+.5)/size*2,r2=nx*nx+ny*ny;
+    if(r2>1.01)continue;
+    const r=Math.sqrt(r2),nz=Math.sqrt(Math.max(0,1-r2)),n=[nx,ny,nz];
+    const rf=[2*nz*nx,2*nz*ny,2*nz*nz-1];
+    const diff=Math.max(0,dot3(n,L)),sky=smooth(-.4,.95,rf[1]);
+    const band=Math.exp(-Math.pow((rf[1]+.14)/.11,2));
+    const kd=Math.max(0,dot3(rf,K)),fd=Math.max(0,dot3(rf,F));
+    const v=.13+.40*diff+.46*(.05+.7*sky*sky)+.16*band+.30*Math.pow(kd,5)+.2*Math.pow(fd,9);
+    const spec=1.15*Math.pow(kd,46),fres=Math.pow(1-nz,3)*.3;
+    const i=(y*size+x)*4;
+    for(let c=0;c<3;c++){
+      let o=alb[c]*v+spec+fres*(c===2?1:.78);
+      o=o/(1+.28*o)*1.2;
+      d[i+c]=255*Math.pow(clamp(o),1/1.9);
+    }
+    d[i+3]=255*clamp((1-r)*size*.5+.5);
+  }
+  g.putImageData(img,0,0);
+  return cv;
+}
+function sprite(name,need){
+  let s=sprites[name];
+  if(!s){
+    const base=shadeSphere(name,512);s=[base];
+    for(let z=256;z>=32;z/=2){const c=document.createElement('canvas');c.width=c.height=z;const g=c.getContext('2d');g.imageSmoothingQuality='high';g.drawImage(s[s.length-1],0,0,z,z);s.push(c)}
+    sprites[name]=s;
+  }
+  for(let i=s.length-1;i>=0;i--)if(s[i].width>=need)return s[i];
+  return s[0];
+}
+const halo=(()=>{const c=document.createElement('canvas');c.width=c.height=192;const g=c.getContext('2d'),r=g.createRadialGradient(96,96,0,96,96,96);r.addColorStop(0,'rgba(0,0,0,.6)');r.addColorStop(.68,'rgba(0,0,0,.6)');r.addColorStop(1,'rgba(0,0,0,0)');g.fillStyle=r;g.fillRect(0,0,192,192);return c})();
+
+/* ---------- renderer ---------- */
+const cv=$('stage'),ctx=cv.getContext('2d');
+let W=0,H=0,DPR=1;
+function resize(){DPR=Math.min(2,devicePixelRatio||1);W=innerWidth;H=innerHeight;cv.width=Math.round(W*DPR);cv.height=Math.round(H*DPR);dirty=true}
+function rotation(yawD,pitchD){const y=yawD*Math.PI/180,p=pitchD*Math.PI/180,cy=Math.cos(y),sy=Math.sin(y),cp=Math.cos(p),sp=Math.sin(p);
+  return[cy,0,sy, sp*sy,cp,-sp*cy, -cp*sy,sp,cp*cy]}
+const rot=(m,p)=>[m[0]*p[0]+m[1]*p[1]+m[2]*p[2],m[3]*p[0]+m[4]*p[1]+m[5]*p[2],m[6]*p[0]+m[7]*p[1]+m[8]*p[2]];
+const camD=p=>3.2+Math.pow(1-p,2)*46;
+
+function clipPoly(poly,n,h){ /* Sutherland–Hodgman against n·q ≤ h */
+  const out=[];
+  for(let i=0;i<poly.length;i++){
+    const a=poly[i],b=poly[(i+1)%poly.length],da=h-dot3(n,a),db=h-dot3(n,b);
+    if(da>=0)out.push(a);
+    if((da>=0)!==(db>=0)){const t=da/(da-db);out.push([a[0]+t*(b[0]-a[0]),a[1]+t*(b[1]-a[1]),a[2]+t*(b[2]-a[2])])}
+  }
+  return out;
+}
+function hull2(pts){
+  pts.sort((a,b)=>a[0]-b[0]||a[1]-b[1]);
+  const cr=(o,a,b)=>(a[0]-o[0])*(b[1]-o[1])-(a[1]-o[1])*(b[0]-o[0]),lo=[],up=[];
+  for(const p of pts){while(lo.length>1&&cr(lo[lo.length-2],lo[lo.length-1],p)<=0)lo.pop();lo.push(p)}
+  for(let i=pts.length-1;i>=0;i--){const p=pts[i];while(up.length>1&&cr(up[up.length-2],up[up.length-1],p)<=0)up.pop();up.push(p)}
+  return lo.slice(0,-1).concat(up.slice(0,-1));
+}
+const DISC=48,LV=norm([-.45,.72,.53]);
+function cutGeometry(act,r,m){
+  const faces=[],pts=[];
+  act.forEach((pl,i)=>{
+    const rho=Math.sqrt(Math.max(0,r*r-pl.h*pl.h));
+    const u=norm(Math.abs(pl.n[1])>.9?[1,0,0]:[pl.n[2],0,-pl.n[0]]),v=[pl.n[1]*u[2]-pl.n[2]*u[1],pl.n[2]*u[0]-pl.n[0]*u[2],pl.n[0]*u[1]-pl.n[1]*u[0]];
+    let poly=[];
+    for(let k=0;k<DISC;k++){const t=k/DISC*TAU,c=Math.cos(t)*rho,s=Math.sin(t)*rho;poly.push([pl.n[0]*pl.h+u[0]*c+v[0]*s,pl.n[1]*pl.h+u[1]*c+v[1]*s,pl.n[2]*pl.h+u[2]*c+v[2]*s])}
+    act.forEach((o,j)=>{if(j!==i&&poly.length)poly=clipPoly(poly,o.n,o.h)});
+    if(poly.length<3)return;
+    const pv=poly.map(q=>rot(m,q));pv.forEach(q=>pts.push(q));
+    faces.push({nv:rot(m,pl.n),pv,sec:pl.sec});
+  });
+  const nvs=act.map(a=>({n:rot(m,a.n),h:a.h}));
+  for(let k=0;k<64;k++){const t=k/64*TAU,q=[Math.cos(t)*r,Math.sin(t)*r,0];if(nvs.every(a=>dot3(a.n,q)<=a.h+1e-6))pts.push(q)}
+  return{faces,pts};
+}
+function blit(mat,x,y,R,a){if(R<.3||a<=.002)return;ctx.globalAlpha=a;ctx.drawImage(sprite(mat,R*2*DPR),x-R,y-R,R*2,R*2)}
+function cutColor(mat,l){const c=MATS[mat];return'rgb('+c.map(v=>Math.round(255*Math.pow(clamp(v*l),1/1.9))).join(',')+')'}
+
+function paint(items){
+  items.sort((a,b)=>a.z-b.z);
+  for(const it of items){
+    if(it.t===0){ /* whole atom */
+      if(it.halo>.01){ctx.globalAlpha=it.halo*it.a;const s=it.R*1.47;ctx.drawImage(halo,it.x-s,it.y-s,s*2,s*2)}
+      blit(it.mat,it.x,it.y,it.R,it.a);
+      if(it.fog>.01&&it.R>.5){ctx.globalAlpha=it.fog*it.a;ctx.fillStyle='#000';ctx.beginPath();ctx.arc(it.x,it.y,it.R-.4,0,TAU);ctx.fill()}
+    }else if(it.t===1){ /* atom cut by the cell walls */
+      blit(it.mat,it.x,it.y,it.R,it.ghost);
+      ctx.save();ctx.beginPath();it.hull.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));ctx.closePath();ctx.clip();
+      blit(it.mat,it.x,it.y,it.R,it.a);
+      if(it.fog>.01){ctx.globalAlpha=it.fog*it.a;ctx.fillStyle='#000';ctx.fillRect(it.x-it.R-2,it.y-it.R-2,it.R*2+4,it.R*2+4)}
+      ctx.restore();
+      for(const f of it.faces){
+        if(f.nv[2]<=.015)continue;
+        const lit=Math.max(0,dot3(f.nv,LV)),l=f.sec?(.7+.3*lit)*(1-it.fog*.4):(.40+.62*lit)*(1-it.fog);
+        const gr=ctx.createLinearGradient(it.x-it.R*.7,it.y-it.R*.7,it.x+it.R*.7,it.y+it.R*.7);
+        gr.addColorStop(0,cutColor(it.mat,l*(f.sec?1.14:1.28)));gr.addColorStop(1,cutColor(it.mat,l*(f.sec?.88:.74)));
+        ctx.globalAlpha=it.a;ctx.fillStyle=gr;ctx.beginPath();
+        f.pv.forEach((q,i)=>{const x=it.x+q[0]*it.k,y=it.y-q[1]*it.k;i?ctx.lineTo(x,y):ctx.moveTo(x,y)});
+        ctx.closePath();ctx.fill();
+        ctx.strokeStyle=f.sec?'rgba(255,255,255,.85)':'rgba(255,255,255,.26)';ctx.lineWidth=f.sec?1.4:.8;ctx.stroke();
+      }
+    }else if(it.t===2){ /* line segment */
+      ctx.globalAlpha=it.a;ctx.strokeStyle=it.c;ctx.lineWidth=it.w;ctx.lineCap='round';
+      ctx.beginPath();ctx.moveTo(it.x1,it.y1);ctx.lineTo(it.x2,it.y2);ctx.stroke();
+    }
+  }
+  ctx.globalAlpha=1;
+}
+
+function renderCell(s,cx,cy,box,A,overlayOn){
+  const M=crystal(s.struct,s.rep,s.ca),m=rotation(s.yaw,s.pitch),D=camD(s.persp);
+  const sp=s.section>.002?cutPlane(M,s.rep,s):null;
+  const g=M.slots?clamp(s.gather)*(1-clamp(s.section*20)):0,r=M.R*s.atom;
+  const spacing=M.R*2.5,fit=M.slots?mix(1,Math.min(1,1.15/(((M.slots-1)/2)*spacing+M.R)),ease(g)):1;
+  const S=box/M.bound*fit,crop=M.planes.length?clamp(s.crop):0,margin=(1-crop)*r*1.05;
+  const items=[],merge=[];
+  const P3=q=>{const v=rot(m,q),k=D/Math.max(.4,D-v[2]);return{x:cx+v[0]*S*k,y:cy-v[1]*S*k,z:v[2],k:S*k}};
+  const edgeA=A*s.cellA*(1-clamp(s.explode))*(1-ease(g));
+  const seg=(p,q,al,w,col)=>{
+    if(al<.01)return;const N=6;
+    for(let i=0;i<N;i++){
+      const a=[mix(p[0],q[0],i/N),mix(p[1],q[1],i/N),mix(p[2],q[2],i/N)],b=[mix(p[0],q[0],(i+1)/N),mix(p[1],q[1],(i+1)/N),mix(p[2],q[2],(i+1)/N)];
+      const mid=[(a[0]+b[0])/2,(a[1]+b[1])/2,(a[2]+b[2])/2];
+      const out=sp&&dot3(sp.n,mid)>sp.h+1e-4;
+      if(!out&&crop<.5&&M.atoms.length<40&&M.atoms.some(t=>!t.cap&&Math.hypot(t.p[0]-mid[0],t.p[1]-mid[1],t.p[2]-mid[2])<r*.97))continue;
+      const u=P3(a),v=P3(b);
+      items.push({t:2,z:(u.z+v.z)/2+.01,x1:u.x,y1:u.y,x2:v.x,y2:v.y,a:out?al*mix(1,.22,sp.t):al,w,c:col});
+    }
+  };
+  /* back walls */
+  if(s.boxFill>.003&&M.faces.length){
+    for(const f of M.faces){if(rot(m,f.n)[2]>=0)continue;ctx.globalAlpha=A*s.boxFill*(1-ease(g));ctx.fillStyle='#5da4ff';ctx.beginPath();f.pts.forEach((q,i)=>{const p=P3(q);i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y)});ctx.closePath();ctx.fill()}
+    ctx.globalAlpha=1;
+  }
+  const many=!M.single;
+  for(const e of M.edges)seg(e[0],e[1],edgeA*(many?mix(.3,.12,s.focus):1),many?.8:1.3,'#fff');
+  if(many&&s.focus>.01)for(const e of M.focusEdges)seg(e[0],e[1],A*s.focus,1.8,'#fff');
+
+  const slotDone=[];
+  for(const t of M.atoms){
+    let al=A*(t.cap?smooth(.88,1,crop):1)*(t.inF?1:mix(1,.06,s.focus));
+    if(al<.01)continue;
+    const act=[];let gone=false;
+    if(sp){const h=sp.h-dot3(sp.n,t.p);if(h<=-r)continue;if(h<r)act.push({n:sp.n,h,sec:1})}
+    if(crop>.001)for(const pl of M.planes){const h=pl.d+margin-dot3(pl.n,t.p);if(h<=-r){gone=true;break}if(h<r)act.push({n:pl.n,h})}
+    if(gone)continue;
+    let wp=t.p;
+    if(s.explode>.001&&M.single){const l=Math.hypot(wp[0],wp[1],wp[2]);if(l>.01){const d=.62*s.explode/l;wp=[wp[0]*(1+d),wp[1]*(1+d),wp[2]*(1+d)]}}
+    let v=rot(m,wp);
+    let gi=0;
+    if(g>.001){gi=ease(clamp(g*1.55-(t.slot/M.slots)*.55));const dx=(t.slot-(M.slots-1)/2)*spacing;v=[mix(v[0],dx,gi),mix(v[1],0,gi),mix(v[2],0,gi)]}
+    const k=D/Math.max(.4,D-v[2]),sx=cx+v[0]*S*k,sy=cy-v[1]*S*k,Rs=r*S*k;
+    const fog=clamp((M.bound-v[2])/(2*M.bound))*s.fog*.62*(1-gi);
+    if(!act.length){items.push({t:0,z:v[2],x:sx,y:sy,R:Rs,mat:t.mat,a:al,fog,halo:M.atoms.length>120?0:.85*(1-gi)});continue}
+    const geo=cutGeometry(act,r,m);
+    if(geo.pts.length<3)continue;
+    const hull=hull2(geo.pts.map(q=>[sx+q[0]*S*k,sy-q[1]*S*k]));
+    let zm=0;for(const q of geo.pts)zm+=q[2];zm/=geo.pts.length;
+    items.push({t:1,z:v[2]+zm,x:sx,y:sy,R:Rs,k:S*k,mat:t.mat,a:al,fog,ghost:s.ghost*A*(1-gi),hull,faces:geo.faces});
+    if(gi>.93&&!slotDone[t.slot]){slotDone[t.slot]=1;merge.push({x:cx+((t.slot-(M.slots-1)/2)*spacing)*S*(D/D),y:cy,R:r*S,mat:t.mat,a:smooth(.93,1,gi)*A})}
+  }
+  paint(items);
+  for(const q of merge)blit(q.mat,q.x,q.y,q.R,q.a);
+  ctx.globalAlpha=1;
+  /* the section plane itself: a glass sheet with a crisp outline and its Miller index */
+  const sheet=sp&&planePoly(M,sp);
+  if(sheet){
+    const pp=sheet.map(P3);
+    ctx.beginPath();pp.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.closePath();
+    ctx.globalAlpha=.08*A*sp.t;ctx.fillStyle='#2997ff';ctx.fill();
+    ctx.globalAlpha=.95*A*sp.t;ctx.strokeStyle='#2997ff';ctx.lineWidth=1.6;ctx.lineJoin='round';ctx.stroke();
+    if(overlayOn){
+      const txt='ระนาบ '+planeName(M.k,sp.key),top=Math.min(...pp.map(p=>p.y)),mx=pp.reduce((a,p)=>a+p.x,0)/pp.length;
+      ctx.font='600 14px Inter,"Noto Sans Thai",sans-serif';
+      const w=ctx.measureText(txt).width+20,h=26,lx=clamp(mx-w/2,6,W-w-6),ly=Math.max(8,top-(1-crop)*r*S*1.08-h-10);
+      ctx.globalAlpha=.9*A*sp.t;ctx.fillStyle='#0b2a4d';ctx.beginPath();ctx.roundRect(lx,ly,w,h,13);ctx.fill();ctx.strokeStyle='#2997ff';ctx.lineWidth=1;ctx.stroke();
+      ctx.globalAlpha=A*sp.t;ctx.fillStyle='#8cc8ff';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(txt,lx+w/2,ly+h/2+1);
+    }
+    ctx.globalAlpha=1;
+  }
+  /* front walls */
+  if(s.boxFill>.003&&M.faces.length){
+    for(const f of M.faces){if(rot(m,f.n)[2]<0)continue;ctx.globalAlpha=A*s.boxFill*.55*(1-ease(g));ctx.fillStyle='#5da4ff';ctx.beginPath();f.pts.forEach((q,i)=>{const p=P3(q);i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y)});ctx.closePath();ctx.fill()}
+    ctx.globalAlpha=1;
+  }
+  if(overlayOn&&M.overlay&&s.overlay>.01)drawOverlay(M.overlay,P3,s.overlay*A,sp?sp.t:0);
+  return M;
+}
+function drawOverlay(o,P3,t,sec){
+  ctx.globalAlpha=.2*t*(1-sec);ctx.fillStyle='#2997ff';ctx.beginPath();o.quad.forEach((q,i)=>{const p=P3(q);i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y)});ctx.closePath();ctx.fill();
+  for(const l of o.lines){
+    const a=P3(l.a),b0=P3(l.b),b={x:mix(a.x,b0.x,t),y:mix(a.y,b0.y,t)};
+    ctx.globalAlpha=t;ctx.strokeStyle='#2997ff';ctx.lineWidth=3;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();
+    ctx.fillStyle='#fff';for(const p of[a,b]){ctx.beginPath();ctx.arc(p.x,p.y,4,0,TAU);ctx.fill()}
+    if(l.m&&sec>.01)for(const f of l.m){ /* rings where two atoms touch along this line */
+      const q=P3([mix(l.a[0],l.b[0],f),mix(l.a[1],l.b[1],f),mix(l.a[2],l.b[2],f)]);
+      ctx.globalAlpha=t*sec;ctx.fillStyle='#000';ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.beginPath();ctx.arc(q.x,q.y,5,0,TAU);ctx.fill();ctx.stroke();
+    }
+    const mx=(a.x+b0.x)/2,my=(a.y+b0.y)/2,dx=b0.x-a.x,dy=b0.y-a.y,len=Math.hypot(dx,dy)||1;
+    let nx=-dy/len,ny=dx/len;if(ny<0&&Math.abs(ny)>.3){nx=-nx;ny=-ny}
+    ctx.font='600 16px Inter,"Noto Sans Thai",sans-serif';
+    const w=ctx.measureText(l.t).width+22,h=30,lx=clamp(mx+nx*30-w/2,6,W-w-6),ly=clamp(my+ny*30-h/2,6,H-h-6);
+    ctx.globalAlpha=t*.92;ctx.fillStyle='#fff';ctx.beginPath();ctx.roundRect(lx,ly,w,h,15);ctx.fill();
+    ctx.globalAlpha=t;ctx.fillStyle='#000';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(l.t,lx+w/2,ly+h/2+1);
+  }
+  ctx.globalAlpha=1;
+}
+function renderCluster(s,cx,cy,box,A){
+  const list=NN[s.struct],m=rotation(s.yaw,s.pitch),D=camD(s.persp),dist=.74,S=box/1.22,items=[];
+  const cr=dist/2,rN=cr*s.atom,rC=cr*Math.min(1,s.atom*1.25);
+  const project=q=>{const v=rot(m,q),k=D/Math.max(.4,D-v[2]);return{x:cx+v[0]*S*k,y:cy-v[1]*S*k,z:v[2],k:S*k}};
+  const c0=project([0,0,0]);items.push({t:0,z:c0.z,x:c0.x,y:c0.y,R:rC*c0.k,mat:'cu',a:A,fog:0,halo:.8});
+  list.forEach((nb,i)=>{
+    const e=ease(clamp(s.cluster*(list.length+3)-i)),p=[nb.v[0]*dist*e,nb.v[1]*dist*e,nb.v[2]*dist*e];
+    if(e<=0)return;const q=project(p);
+    items.push({t:0,z:q.z,x:q.x,y:q.y,R:rN*q.k*e,mat:nb.mat,a:A*e,fog:clamp((1-q.z)/2)*s.fog*.5,halo:.7});
+    for(let j=0;j<5;j++){const a=project([p[0]*j/5,p[1]*j/5,p[2]*j/5]),b=project([p[0]*(j+1)/5,p[1]*(j+1)/5,p[2]*(j+1)/5]);
+      items.push({t:2,z:(a.z+b.z)/2-.02,x1:a.x,y1:a.y,x2:b.x,y2:b.y,a:A*e*.7,w:2.4,c:'#fff'})}
+  });
+  paint(items);
+}
+function renderStack(s,cx,cy,box,A){
+  const st=stackSites(seqNow),m=rotation(s.yaw,s.pitch),D=camD(s.persp),S=box/1.25,items=[];
+  for(const t of st.sites){
+    const e=ease(clamp(layerE[t.l]));if(e<.01)continue;
+    const v=rot(m,[t.p[0],t.p[1]+(1-e)*.75,t.p[2]]),k=D/Math.max(.4,D-v[2]);
+    items.push({t:0,z:v[2],x:cx+v[0]*S*k,y:cy-v[1]*S*k,R:st.R*s.atom*S*k,mat:t.mat,a:A*e,fog:clamp((1.1-v[2])/2.2)*s.fog*.6,halo:.85});
+  }
+  paint(items);
+}
+
+/* ---------- state ---------- */
+const BASE={mode:'cell',struct:'FCC',rep:[1,1,1],yaw:-32,pitch:18,zoom:1,persp:.35,spin:8,atom:1,crop:0,ghost:0,explode:0,gather:0,cellA:.85,boxFill:0,focus:0,overlay:0,ca:IDEAL,cluster:1,layers:4,fog:.55,section:0,secOff:0,plane:'auto',flip:false};
+const NUM=['yaw','pitch','zoom','persp','atom','crop','ghost','explode','gather','cellA','boxFill','focus','overlay','ca','cluster','fog','section','secOff'];
+const RATE={section:2.4,gather:2.6,explode:3.4,crop:3.6,cluster:2.2,overlay:4.5,yaw:5,pitch:5};
+const tgt={...BASE},cur={...BASE,hx:0,hy:0,hw:400,hh:400},want={mode:'cell',struct:'FCC',rep:[1,1,1]};
+let live={...want},fade=1,fadeDir=1,dirty=true,held=false,seqNow='ABAB',timers=[];
+const layerE=[1,1,1,1];
+const sceneKey=o=>o.mode+o.struct+o.rep.join('');
+
+/* ---------- slides ---------- */
+const OV={SC:{yaw:-22,pitch:14},BCC:{yaw:-34,pitch:15},FCC:{yaw:-16,pitch:12},HCP:{yaw:-14,pitch:20}};
+const SV={SC:{yaw:-20,pitch:14},BCC:{yaw:-31,pitch:13},FCC:{yaw:-18,pitch:13},HCP:{yaw:-14,pitch:44}};
+const structSteps=k=>[
+  {struct:k,spin:11},
+  {struct:k,spin:0,overlay:1,...OV[k]},
+  {struct:k,spin:0,overlay:1,section:1,...SV[k]},
+  {struct:k,spin:0,yaw:-28,pitch:20,seq:[[60,{crop:1}],[1000,{explode:.62}],[2000,{gather:1}]]},
+  {struct:k,mode:'cluster',spin:16,atom:.6,pitch:22},
+  {struct:k,crop:1,ghost:.1,boxFill:.05,spin:11}
+];
+const SLIDES=[
+  {id:'intro',label:'หน่วยเซลล์',base:{rep:[3,3,3],spin:7,yaw:-30,pitch:22,cellA:.5},steps:[{}]},
+  {id:'repeat',label:'ผลึกคือแบบแผนที่ซ้ำ',steps:[{rep:[3,3,3],spin:6,cellA:.55},{rep:[3,3,3],focus:1,spin:4},{rep:[1,1,1],spin:10}]},
+  {id:'apf',label:'APF คืออะไร',steps:[{crop:1,cellA:.12,spin:10},{atom:.32,crop:0,boxFill:.2,spin:10},{crop:1,ghost:.1,boxFill:.05,spin:10}]},
+  {id:'count',label:'การนับอะตอม',base:{spin:0,yaw:-28,pitch:20},steps:[{spin:8},{crop:1,ghost:.14,spin:8},{crop:1,explode:.75},{crop:1,explode:.75,gather:1}]},
+  ...['SC','BCC','FCC','HCP'].map(k=>({id:k.toLowerCase(),label:INFO[k].name,steps:structSteps(k)})),
+  {id:'ratio',label:'อัตราส่วน c/a',base:{struct:'HCP',overlay:1,spin:0,yaw:-14,pitch:16},dyn:()=>({ca:raCa}),steps:[{}]},
+  {id:'stacking',label:'ลำดับการซ้อนชั้น',base:{mode:'stack',spin:7,yaw:-20,pitch:27},steps:[{layers:1},{layers:2},{layers:3},{layers:4}]},
+  {id:'compare',label:'เปรียบเทียบทั้งสี่',base:{mode:'compare',crop:1,spin:14,yaw:-30,pitch:20,cellA:.75},steps:[{}]},
+  {id:'density',label:'ความหนาแน่น',base:{crop:1,ghost:.04,spin:10},dyn:()=>({struct:el.k,ca:el.ca||IDEAL}),steps:[{}]},
+  {id:'quiz',label:'ทดสอบความเข้าใจ',base:{crop:1,ghost:.04,spin:9},dyn:()=>({struct:QUIZ[Math.min(qi,QUIZ.length-1)].k}),steps:[{}]},
+  {id:'studio',label:'Studio',base:{crop:1,ghost:.12,boxFill:.04,spin:7},steps:[{}]}
+];
+let idx=0,step=0,autoInsp=false;
+
+/* build the four structure slides */
+$('structSlides').innerHTML=['SC','BCC','FCC','HCP'].map((k,i)=>{const d=INFO[k];return`
+<section class="slide split" id="s-${k.toLowerCase()}" style="--c:${d.c}">
+  <div class="copy">
+    <p class="eyebrow">โครงสร้างที่ ${i+1} จาก 4 · ${d.th}</p>
+    <h2>${d.name}</h2>
+    <div class="stat"><strong>${Math.round(d.apf*100)}%</strong><span>ของกล่อง<br>คืออะตอม</span></div>
+    <div class="rows">
+      <button class="row" data-step="1"><b>จุดสัมผัส</b><small>${d.touch}</small><span class="m">${d.aM}</span></button>
+      <button class="row" data-step="2"><b>ภาพตัด</b><small>${d.sec}</small><span class="m">${d.secM}</span></button>
+      <button class="row" data-step="3"><b>อะตอมต่อเซลล์</b><small>${d.cnt}</small><span class="m">${d.cntM}</span></button>
+      <button class="row" data-step="4"><b>เพื่อนบ้านใกล้สุด</b><small>${d.cnN}</small><span class="m">CN = ${d.cn}</span></button>
+      <button class="row" data-step="5"><b>APF</b><small>ตัวอย่างโลหะ ${d.metals}</small><span class="m">${d.apfM}</span></button>
+    </div>
+  </div>
+  <div class="hole" data-hole></div>
+</section>`}).join('');
+
+/* compare cards */
+$('cmp').innerHTML=['SC','BCC','FCC','HCP'].map(k=>{const d=INFO[k];return`
+<article class="card" style="--c:${d.c}"><div class="mini" data-mini="${k}"></div><div>
+  <h3>${k}</h3><div class="pct">${d.apf.toFixed(2)}</div><div class="track"><i style="transform:scaleX(${d.apf})"></i></div>
+  <dl class="kv"><dt>a</dt><dd>${{SC:'2R',BCC:'4R/√3',FCC:'2√2 R',HCP:'2R'}[k]}</dd><dt>n</dt><dd>${d.n}</dd><dt>CN</dt><dd>${d.cn}</dd><dt>โลหะ</dt><dd>${d.metals.split(',').slice(0,3).join(',')}</dd></dl>
+</div></article>`}).join('');
+
+const slideEl=i=>$('s-'+SLIDES[i].id);
+function setTargets(o){
+  for(const k in o){
+    if(k==='seq')continue;
+    if(k==='mode'||k==='struct'||k==='rep')want[k]=o[k];
+    else if(k==='yaw')tgt.yaw=cur.yaw+wrap(o.yaw-cur.yaw);
+    else tgt[k]=o[k];
+  }
+  dirty=true;
+}
+function applyStep(){
+  timers.forEach(clearTimeout);timers=[];held=false;
+  const sl=SLIDES[idx],st={...BASE,...(sl.base||{}),...(sl.steps[step]||{}),...(sl.dyn?sl.dyn():{})};
+  setTargets(st);
+  (st.seq||[]).forEach(([ms,o])=>timers.push(setTimeout(()=>setTargets(o),reduced?0:ms)));
+  if(st.mode==='stack')for(let i=0;i<4;i++)layerT[i]=i<st.layers?1:0;
+  document.querySelectorAll('.slide').forEach((el,i)=>el.classList.toggle('on',el===slideEl(idx)));
+  slideEl(idx).querySelectorAll('.row[data-step]').forEach(r=>{const n=+r.dataset.step;r.classList.toggle('on',n<=step);r.classList.toggle('cur',n===step)});
+  $('progress').firstElementChild.style.width=((idx+(step+1)/sl.steps.length)/SLIDES.length*100)+'%';
+  $('wNum').textContent=(idx+1)+' / '+SLIDES.length;$('wName').textContent=sl.label;
+  $('pips').innerHTML=sl.steps.length>1?sl.steps.map((_,i)=>`<i class="${i<=step?'on':''}"></i>`).join(''):'';
+  $('prev').disabled=idx===0&&step===0;
+  [...$('menu').children].forEach((b,i)=>b.setAttribute('aria-current',i===idx));
+  try{history.replaceState(null,'','#'+sl.id)}catch(e){}
+  syncInspector();
+}
+function goto(i,s=0){
+  i=clamp(i,0,SLIDES.length-1);
+  const was=SLIDES[idx].id;idx=i;step=clamp(s,0,SLIDES[i].steps.length-1);
+  if(SLIDES[i].id==='studio'&&innerWidth>860&&!document.body.classList.contains('insp')){toggleInsp(true);autoInsp=true}
+  else if(was==='studio'&&SLIDES[i].id!=='studio'&&autoInsp){toggleInsp(false);autoInsp=false}
+  applyStep();
+}
+function next(){const sl=SLIDES[idx];if(step<sl.steps.length-1){step++;applyStep()}else if(idx<SLIDES.length-1)goto(idx+1)}
+function prev(){if(step>0){step--;applyStep()}else if(idx>0)goto(idx-1,SLIDES[idx-1].steps.length-1)}
+
+/* ---------- frame loop ---------- */
+const layerT=[1,1,1,1];
+let last=performance.now();
+function frame(now){
+  const dt=Math.min(.05,(now-last)/1000);last=now;
+  if(fadeDir<0){fade-=dt*(reduced?60:5.5);if(fade<=0){fade=0;fadeDir=1;live={...want};
+      for(const k of['atom','crop','ghost','explode','gather','overlay','focus','boxFill','ca','section','secOff'])cur[k]=tgt[k];
+      if(live.mode==='cluster')cur.cluster=0;
+      if(live.mode==='stack')for(let i=0;i<4;i++)layerE[i]=0}dirty=true}
+  else if(sceneKey(want)!==sceneKey(live)){fadeDir=-1;dirty=true}
+  else if(fade<1){fade=Math.min(1,fade+dt*(reduced?60:2.4));dirty=true}
+  const spinNow=(held||reduced)?0:tgt.spin;
+  if(spinNow){cur.yaw+=spinNow*dt;tgt.yaw+=spinNow*dt;dirty=true}
+  for(const k of NUM){const d=tgt[k]-cur[k];if(Math.abs(d)>.0004){cur[k]+=d*(reduced?1:1-Math.exp(-dt*(RATE[k]||6)));dirty=true}else cur[k]=tgt[k]}
+  for(let i=0;i<4;i++){const d=layerT[i]-layerE[i];if(Math.abs(d)>.002){layerE[i]+=d*(1-Math.exp(-dt*4.2));dirty=true}else layerE[i]=layerT[i]}
+  const hole=slideEl(idx).querySelector('[data-hole]');
+  if(hole){const r=hole.getBoundingClientRect();for(const[k,v]of[['hx',r.left],['hy',r.top],['hw',r.width],['hh',r.height]]){const d=v-cur[k];if(Math.abs(d)>.3){cur[k]+=d*(reduced?1:1-Math.exp(-dt*9));dirty=true}else cur[k]=v}}
+  if(dirty){dirty=false;draw()}
+  requestAnimationFrame(frame);
+}
+function draw(){
+  ctx.setTransform(DPR,0,0,DPR,0,0);ctx.clearRect(0,0,W,H);
+  if(cur.hw<8||cur.hh<8)return;
+  const vis=ease(fade),cx=cur.hx+cur.hw/2,cy=cur.hy+cur.hh/2,box=Math.min(cur.hw,cur.hh)/2*cur.zoom*(.94+.06*vis);
+  const s={...cur,struct:live.struct,rep:live.rep,plane:tgt.plane,flip:tgt.flip};
+  if(live.mode!=='compare'){
+    const t=INFO[live.struct].tint,rad=Math.max(cur.hw,cur.hh)*.72,gl=ctx.createRadialGradient(cx,cy,0,cx,cy,rad);
+    gl.addColorStop(0,`rgba(${t},${.17*vis})`);gl.addColorStop(1,`rgba(${t},0)`);ctx.fillStyle=gl;ctx.fillRect(0,0,W,H);
+  }
+  if(live.mode==='cell')renderCell(s,cx,cy,box,vis,true);
+  else if(live.mode==='cluster')renderCluster(s,cx,cy,box,vis);
+  else if(live.mode==='stack')renderStack(s,cx,cy,box,vis);
+  else if(live.mode==='compare')document.querySelectorAll('[data-mini]').forEach(el=>{
+    const r=el.getBoundingClientRect();
+    renderCell({...s,struct:el.dataset.mini,rep:[1,1,1],ca:IDEAL,overlay:0,gather:0,explode:0,section:0},r.left+r.width/2,r.top+r.height/2,Math.min(r.width*.56,r.height*.5)*(.94+.06*vis),vis,false);
+  });
+}
+
+/* ---------- inspector ---------- */
+const CTL=[
+  ['มุมมอง',[['yaw','หมุนแนวนอน',-180,180,.5,'°'],['pitch','มุมเงย',-89,89,.5,'°'],['zoom','ซูม',.4,3,.01,'×'],['persp','เพอร์สเปกทีฟ',0,1,.01,''],['spin','หมุนอัตโนมัติ',-60,60,1,'°/s']]],
+  ['อะตอม',[['atom','ขนาดอะตอม (เท่าของ R)',.1,1,.01,''],['crop','ตัดตามขอบเซลล์',0,1,.01,''],['ghost','เงาส่วนที่ถูกตัด',0,.6,.01,''],['explode','แยกชิ้น',0,1,.01,''],['gather','ประกอบเป็นลูกเต็ม',0,1,.01,''],['fog','ความลึกของภาพ',0,1,.01,'']]],
+  ['ระนาบตัด',[['section','ผ่าตามระนาบ',0,1,.01,''],['secOff','เลื่อนระนาบ (เท่าของ a)',-1,1,.01,'']]],
+  ['เซลล์',[['nx','จำนวนเซลล์แกน x',1,4,1,''],['ny','จำนวนเซลล์แกน y',1,4,1,''],['nz','จำนวนเซลล์แกน z',1,4,1,''],['focus','เน้นเซลล์กลาง',0,1,.01,''],['cellA','เส้นขอบเซลล์',0,1,.01,''],['boxFill','ผนังกล่อง',0,.5,.01,''],['ca','อัตราส่วน c/a (HCP)',1.4,2,.001,'']]]
+];
+$('iGroups').innerHTML=CTL.map(([g,items])=>`<div class="igroup"><h4>${g}</h4>${g==='มุมมอง'?`<div class="views" id="views"></div>`:g==='ระนาบตัด'?`<div class="views" id="planes"></div>`:''}${items.map(([k,l,a,b,st])=>`<div class="ctl" id="w-${k}"><label for="c-${k}">${l}</label><input type="number" id="n-${k}" min="${a}" max="${b}" step="${st}" aria-label="${l}"><input type="range" id="c-${k}" min="${a}" max="${b}" step="${st}"></div>`).join('')}</div>`).join('');
+$('views').innerHTML=[['[001]',0,0],['[101]',-45,0],['[111]',-45,35.26],['[0001]',0,89],['มุมเอียง',-32,18]].map(([t,y,p])=>`<button class="chip" data-y="${y}" data-p="${p}">${t}</button>`).join('');
+$('views').addEventListener('click',e=>{const b=e.target.closest('[data-y]');if(!b)return;held=true;setTargets({yaw:+b.dataset.y,pitch:+b.dataset.p});syncInspector()});
+$('planes').addEventListener('click',e=>{
+  const b=e.target.closest('[data-pl]');if(!b)return;
+  if(b.dataset.pl==='flip')tgt.flip=!tgt.flip;else tgt.plane=b.dataset.pl;
+  const[y,p]=FACING[planeKey(want.struct,tgt.plane)];
+  held=true;cur.section=0;
+  setTargets({mode:'cell',section:1,yaw:tgt.flip?y+180:y,pitch:tgt.flip?-p:p});syncInspector();
+});
+$('iStruct').innerHTML=['SC','BCC','FCC','HCP'].map(k=>`<button data-k="${k}">${k}</button>`).join('');
+$('iStruct').addEventListener('click',e=>{const b=e.target.closest('[data-k]');if(b){setTargets({struct:b.dataset.k,mode:'cell'});syncInspector()}});
+function ctlValue(k){return k==='nx'?want.rep[0]:k==='ny'?want.rep[1]:k==='nz'?want.rep[2]:k==='yaw'?wrap(tgt.yaw):k==='spin'?tgt.spin:tgt[k]}
+function setCtl(k,v){
+  if(k==='nx'||k==='ny'||k==='nz'){const r=want.rep.slice();r['xyz'.indexOf(k[1])]=Math.round(v);want.rep=r;dirty=true}
+  else if(k==='yaw'){held=true;tgt.yaw=cur.yaw+wrap(v-cur.yaw)}
+  else if(k==='spin'){tgt.spin=v;held=false}
+  else tgt[k]=v;
+  dirty=true;
+}
+CTL.forEach(([,items])=>items.forEach(([k,,a,b])=>{
+  const c=$('c-'+k),n=$('n-'+k);
+  c.addEventListener('input',()=>{const v=+c.value;n.value=v;setCtl(k,v);readout()});
+  n.addEventListener('input',()=>{const v=parseFloat(n.value);if(!isNaN(v)&&v>=a&&v<=b){c.value=v;setCtl(k,v);readout()}});
+  n.addEventListener('change',()=>{const v=clamp(parseFloat(n.value)||a,a,b);n.value=v;c.value=v;setCtl(k,v);readout()});
+}));
+function readout(){
+  const M=crystal(want.struct,[1,1,1],tgt.ca),r=M.R*tgt.atom,vol=M.vol;
+  $('rN').textContent=M.n;$('rA').textContent=(M.a/M.R).toFixed(3);$('rV').textContent=(vol/Math.pow(M.R,3)).toFixed(2);
+  $('rF').textContent=(M.n*(4/3)*Math.PI*r*r*r/vol).toFixed(3);
+}
+function syncInspector(){
+  CTL.forEach(([,items])=>items.forEach(([k,,,,st])=>{
+    const v=ctlValue(k),c=$('c-'+k),n=$('n-'+k),d=st<.01?3:st<1?2:0;
+    if(document.activeElement!==n)n.value=(+v).toFixed(d);
+    if(document.activeElement!==c)c.value=v;
+  }));
+  [...$('iStruct').children].forEach(b=>b.setAttribute('aria-pressed',b.dataset.k===want.struct));
+  const hex=want.struct==='HCP',one=want.rep.every(v=>v===1);
+  $('w-ca').classList.toggle('off',!hex);$('w-nz').classList.toggle('off',hex);
+  const pk=hex?'hex':'cubic',pl=$('planes');
+  if(pl.dataset.k!==pk){pl.dataset.k=pk;pl.innerHTML=PLANES[pk].map(([k,t])=>`<button class="chip" data-pl="${k}">${t}</button>`).join('')+'<button class="chip" data-pl="flip">กลับด้าน</button>'}
+  const pKey=planeKey(want.struct,tgt.plane);
+  [...pl.children].forEach(b=>b.setAttribute('aria-pressed',b.dataset.pl==='flip'?!!tgt.flip:tgt.section>.01&&b.dataset.pl===pKey));
+  $('w-gather').classList.toggle('off',!one||tgt.section>.01);$('w-explode').classList.toggle('off',!one);$('w-focus').classList.toggle('off',one);
+  readout();
+}
+setInterval(()=>{if(document.body.classList.contains('insp'))syncInspector()},220);
+function toggleInsp(on){
+  const v=on===undefined?!document.body.classList.contains('insp'):on;
+  document.body.classList.toggle('insp',v);$('tInsp').setAttribute('aria-pressed',v);autoInsp=false;syncInspector();dirty=true;
+}
+$('tInsp').onclick=()=>toggleInsp();
+$('iReset').onclick=()=>applyStep();
+
+/* ---------- ratio slide ---------- */
+let raCa=IDEAL;
+const RA_X=x=>42+(x-1.4)/.6*408,RA_Y=y=>164-(y-.58)/.18*150;
+(function(){
+  let path='';for(let i=0;i<=120;i++){const x=1.4+i/120*.6;path+=(i?'L':'M')+RA_X(x).toFixed(1)+' '+RA_Y(hcpAPF(x)).toFixed(1)}
+  const xt=[1.4,1.6,1.8,2].map(x=>`<line x1="${RA_X(x)}" x2="${RA_X(x)}" y1="14" y2="164" stroke="rgba(255,255,255,.1)"/><text x="${RA_X(x)}" y="182" fill="#a9a9b0" font-size="12" text-anchor="middle">${x.toFixed(1)}</text>`).join('');
+  const yt=[.6,.65,.7,.75].map(y=>`<line x1="42" x2="450" y1="${RA_Y(y)}" y2="${RA_Y(y)}" stroke="rgba(255,255,255,.1)"/><text x="34" y="${RA_Y(y)+4}" fill="#a9a9b0" font-size="12" text-anchor="end">${y.toFixed(2)}</text>`).join('');
+  $('raChart').innerHTML=xt+yt+`<path d="${path}" fill="none" stroke="#6bdcc2" stroke-width="2.5"/><line id="raLine" y1="14" y2="164" stroke="#fff" stroke-dasharray="3 4"/><circle id="raDot" r="6" fill="#fff" stroke="#000" stroke-width="2"/>`;
+  $('raChips').innerHTML=[['อุดมคติ',IDEAL],['Ti',1.587],['Mg',1.624],['Zn',1.856]].map(([t,v])=>`<button class="chip" data-v="${v}">${t} ${(+v).toFixed(3)}</button>`).join('');
+})();
+function setRatio(v,skip){
+  raCa=clamp(v,1.4,2);const f=hcpAPF(raCa);
+  $('raApf').textContent=(f*100).toFixed(1)+'%';$('raVal').textContent=raCa.toFixed(3);
+  $('raLine').setAttribute('x1',RA_X(raCa));$('raLine').setAttribute('x2',RA_X(raCa));
+  $('raDot').setAttribute('cx',RA_X(raCa));$('raDot').setAttribute('cy',RA_Y(f));
+  $('raSlider').value=raCa;if(!skip)$('raNum').value=raCa.toFixed(3);
+  $('raNote').textContent=Math.abs(raCa-IDEAL)<.004?'ชั้นบนและชั้นกลางแตะกันพอดี อะตอมทุกลูกมีเพื่อนบ้านครบ 12 ลูก'
+    :raCa<IDEAL?'ชั้นอยู่ชิดเกินไป อะตอมต่างชั้นชนกันก่อน รัศมีจึงต้องเล็กลงและ APF ลดลง'
+    :'ชั้นห่างกันเกินไป ปริมาตรเซลล์โตขึ้นแต่รัศมีเท่าเดิม APF จึงลดลง';
+  [...$('raChips').children].forEach(b=>b.setAttribute('aria-pressed',Math.abs(+b.dataset.v-raCa)<.0006));
+  if(SLIDES[idx].id==='ratio')setTargets({ca:raCa});
+}
+$('raSlider').addEventListener('input',e=>setRatio(+e.target.value));
+$('raNum').addEventListener('input',e=>{const v=parseFloat(e.target.value);if(v>=1.4&&v<=2)setRatio(v,true)});
+$('raChips').addEventListener('click',e=>{const b=e.target.closest('[data-v]');if(b)setRatio(+b.dataset.v)});
+
+/* ---------- stacking slide ---------- */
+function setSeq(q){
+  if(q!==seqNow){seqNow=q;layerE[2]=0;layerE[3]=0}
+  $('seqH').setAttribute('aria-pressed',q==='ABAB');$('seqF').setAttribute('aria-pressed',q==='ABCA');
+  const col={A:'var(--ti)',B:'var(--bl)',C:'var(--cu)'},s=q==='ABAB'?'ABABAB':'ABCABC';
+  $('letters').innerHTML=[...s].map(l=>`<i style="color:${col[l]}">${l}</i>`).join('')+'<span style="color:var(--ink-3)">…</span>';
+  $('thirdNote').textContent=q==='ABAB'?'วางตรงกับชั้น A ได้โครงสร้าง HCP':'วางในหลุมอีกชุดหนึ่ง เกิดชั้น C ได้โครงสร้าง FCC';
+  dirty=true;
+}
+$('seqH').onclick=()=>setSeq('ABAB');$('seqF').onclick=()=>setSeq('ABCA');
+
+/* ---------- density slide ---------- */
+let el=ELEMENTS[0],elR=el.R;
+$('elChips').innerHTML=ELEMENTS.map((e,i)=>`<button class="chip" data-i="${i}">${e.s}</button>`).join('');
+function density(){
+  const a=INFO[el.k].aR*elR,ca=el.ca||IDEAL,V=el.k==='HCP'?(3*SQ3/2)*a*a*(ca*a):a*a*a,n=INFO[el.k].n,rho=n*el.A/(V*1e-21*NA),err=(rho-el.rho)/el.rho*100;
+  return{a,V,n,rho,err};
+}
+function renderDensity(){
+  const d=density();
+  $('elLabel').textContent=`รัศมีอะตอม R ของ ${el.s} (nm) · โครงสร้าง ${el.k}`;
+  $('elR').value=elR;if(document.activeElement!==$('elRn'))$('elRn').value=elR.toFixed(3);
+  [...$('elChips').children].forEach((b,i)=>b.setAttribute('aria-pressed',ELEMENTS[i]===el));
+  $('elOut').innerHTML=`<div class="res big"><div><span>ρ จากการคำนวณ</span><b>${d.rho.toFixed(2)}</b> <em>g/cm³</em></div><em>ค่าจริง ${el.rho.toFixed(2)} g/cm³ · ต่างกัน ${d.err>=0?'+':''}${d.err.toFixed(1)}%</em></div>
+  <div class="res"><span>n</span><b>${d.n}</b></div><div class="res"><span>a (nm)</span><b>${d.a.toFixed(4)}</b></div><div class="res"><span>V<sub>C</sub> (10⁻²³ cm³)</span><b>${(d.V*100).toFixed(3)}</b></div>`;
+}
+$('elChips').addEventListener('click',e=>{const b=e.target.closest('[data-i]');if(!b)return;el=ELEMENTS[+b.dataset.i];elR=el.R;renderDensity();if(SLIDES[idx].id==='density')setTargets({struct:el.k,ca:el.ca||IDEAL})});
+$('elR').addEventListener('input',e=>{elR=+e.target.value;renderDensity()});
+$('elRn').addEventListener('input',e=>{const v=parseFloat(e.target.value);if(v>=.1&&v<=.2){elR=v;renderDensity()}});
+
+/* ---------- quiz ---------- */
+const QUIZ=[
+  {k:'FCC',q:'FCC หนึ่งหน่วยเซลล์มีอะตอมสุทธิกี่อะตอม',o:['1','2','4','6'],a:2,e:'8 มุม × ⅛ + 6 หน้า × ½ = 4 อะตอม'},
+  {k:'BCC',q:'ใน BCC อะตอมแตะกันตามแนวใด',o:['ขอบเซลล์','เส้นทแยงมุมหน้า','เส้นทแยงมุมลำตัว','ไม่แตะกันเลย'],a:2,e:'เส้นทแยงมุมลำตัวยาว a√3 และเท่ากับ 4R'},
+  {k:'SC',q:'โครงสร้างใดมี APF ต่ำที่สุด',o:['SC','BCC','FCC','HCP'],a:0,e:'SC มี APF 0.52 ส่วน BCC 0.68 และ FCC กับ HCP 0.74'},
+  {k:'HCP',q:'เหตุใด FCC และ HCP จึงมี APF เท่ากัน',o:['มีจำนวนอะตอมต่อเซลล์เท่ากัน','ซ้อนระนาบอัดแน่นแบบเดียวกัน ต่างกันแค่ลำดับชั้น','มีค่า a เท่ากัน','เป็นลูกบาศก์ทั้งคู่'],a:1,e:'ทั้งสองเกิดจากระนาบอัดแน่น FCC เรียง ABCABC ส่วน HCP เรียง ABAB'},
+  {k:'FCC',q:'ทองแดง (FCC) มี R = 0.128 nm และ A = 63.55 g/mol ความหนาแน่นตามทฤษฎีเป็นเท่าใด',o:['2.70 g/cm³','7.87 g/cm³','8.90 g/cm³','19.3 g/cm³'],a:2,e:'a = 2√2 R = 0.362 nm จึงได้ ρ = 4(63.55) / (a³ · Nₐ) ≈ 8.90 g/cm³'}
+];
+let qi=0,qScore=0,qDone=false;
+function renderQuiz(){
+  $('qNext').hidden=true;$('qFeedback').textContent='';qDone=false;
+  if(qi>=QUIZ.length){
+    $('qNo').textContent='ผลคะแนน';$('qScore').textContent='';
+    $('qText').textContent=`คุณตอบถูก ${qScore} จาก ${QUIZ.length} ข้อ`;$('qOpts').innerHTML='';
+    $('qFeedback').textContent=qScore===QUIZ.length?'ครบทุกข้อ พร้อมนำเสนอเรื่องนี้แล้ว':'ย้อนดูสไลด์โครงสร้างแต่ละแบบ แล้วลองอีกครั้งได้';
+    $('qNext').hidden=false;$('qNext').textContent='ทำอีกครั้ง';return;
+  }
+  const q=QUIZ[qi];
+  $('qNo').textContent=`ข้อ ${qi+1} จาก ${QUIZ.length}`;$('qScore').textContent=`ถูก ${qScore} ข้อ`;$('qText').textContent=q.q;
+  $('qOpts').innerHTML=q.o.map((t,i)=>`<button class="opt" data-a="${i}">${t}</button>`).join('');
+  $('qNext').textContent=qi===QUIZ.length-1?'ดูผลคะแนน':'ข้อถัดไป';
+  if(SLIDES[idx].id==='quiz')setTargets({struct:q.k});
+}
+function answer(i){
+  if(qDone||qi>=QUIZ.length)return;qDone=true;const q=QUIZ[qi],ok=i===q.a;if(ok)qScore++;
+  [...$('qOpts').children].forEach((b,n)=>{b.disabled=true;if(n===q.a)b.classList.add('right');else if(n===i)b.classList.add('wrong')});
+  $('qFeedback').textContent=(ok?'ถูกต้อง · ':'ยังไม่ถูก · ')+q.e;$('qScore').textContent=`ถูก ${qScore} ข้อ`;$('qNext').hidden=false;
+}
+$('qOpts').addEventListener('click',e=>{const b=e.target.closest('[data-a]');if(b)answer(+b.dataset.a)});
+$('qNext').onclick=()=>{if(qi>=QUIZ.length){qi=0;qScore=0}else qi++;renderQuiz()};
+
+/* ---------- input ---------- */
+$('prev').onclick=prev;$('next').onclick=next;
+$('menu').innerHTML=SLIDES.map((s,i)=>`<button data-i="${i}"><em>${i+1}</em>${s.label}</button>`).join('');
+function toggleMenu(v){const m=$('menu'),on=v===undefined?m.hidden:v;m.hidden=!on;$('where').setAttribute('aria-expanded',on)}
+$('where').onclick=e=>{e.stopPropagation();toggleMenu()};
+$('menu').addEventListener('click',e=>{const b=e.target.closest('[data-i]');if(b){goto(+b.dataset.i);toggleMenu(false)}});
+addEventListener('click',e=>{if(!e.target.closest('#menu'))toggleMenu(false)});
+function fullscreen(){try{if(document.fullscreenElement)document.exitFullscreen();else{const p=document.documentElement.requestFullscreen&&document.documentElement.requestFullscreen();if(p&&p.catch)p.catch(()=>{})}}catch(e){}}
+$('tFull').onclick=fullscreen;
+$('deck').addEventListener('click',e=>{
+  const go=e.target.closest('[data-go]');if(go){go.dataset.go==='next'?next():goto(SLIDES.findIndex(s=>s.id===go.dataset.go));return}
+  const r=e.target.closest('.row[data-step]');if(r){step=+r.dataset.step;applyStep()}
+});
+addEventListener('keydown',e=>{
+  const t=e.target,typing=t.matches&&t.matches('input,select,textarea');
+  if(e.key==='Escape'){toggleMenu(false);if(document.body.classList.contains('insp'))toggleInsp(false);return}
+  if(typing||e.metaKey||e.altKey||(e.ctrlKey&&e.key!=='+'))return;
+  const onBtn=t.matches&&t.matches('button');
+  switch(e.key){
+    case'ArrowRight':case'ArrowDown':case'PageDown':e.preventDefault();next();break;
+    case' ':case'Enter':if(onBtn)return;e.preventDefault();next();break;
+    case'ArrowLeft':case'ArrowUp':case'PageUp':case'Backspace':e.preventDefault();prev();break;
+    case'Home':goto(0);break;case'End':goto(SLIDES.length-1);break;
+    case'c':case'C':toggleInsp();break;case'f':case'F':fullscreen();break;case'r':case'R':applyStep();break;
+    case'x':case'X':if(want.mode==='cell'){tgt.section=tgt.section>.5?0:1;dirty=true;syncInspector()}break;
+    case'+':case'=':tgt.zoom=clamp(tgt.zoom*1.1,.4,3);dirty=true;break;case'-':tgt.zoom=clamp(tgt.zoom/1.1,.4,3);dirty=true;break;
+    default:if(SLIDES[idx].id==='quiz'&&/^[1-4]$/.test(e.key))answer(+e.key-1);
+  }
+});
+/* drag to rotate, pinch or ctrl-wheel to zoom */
+const pts=new Map();let pinch=0;
+cv.addEventListener('pointerdown',e=>{cv.setPointerCapture(e.pointerId);pts.set(e.pointerId,[e.clientX,e.clientY]);cv.classList.add('drag');held=true;if(pts.size===2){const[a,b]=[...pts.values()];pinch=Math.hypot(a[0]-b[0],a[1]-b[1])}});
+cv.addEventListener('pointermove',e=>{
+  const p=pts.get(e.pointerId);if(!p)return;
+  if(pts.size===1){const dx=e.clientX-p[0],dy=e.clientY-p[1];cur.yaw+=dx*.4;tgt.yaw=cur.yaw;cur.pitch=tgt.pitch=clamp(cur.pitch+dy*.4,-89,89);dirty=true}
+  pts.set(e.pointerId,[e.clientX,e.clientY]);
+  if(pts.size===2){const[a,b]=[...pts.values()],d=Math.hypot(a[0]-b[0],a[1]-b[1]);if(pinch){tgt.zoom=clamp(tgt.zoom*d/pinch,.4,3);dirty=true}pinch=d}
+});
+const up=e=>{pts.delete(e.pointerId);if(!pts.size)cv.classList.remove('drag');pinch=0};
+cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
+let wheelAcc=0,wheelLock=0;
+addEventListener('wheel',e=>{
+  if(e.ctrlKey){e.preventDefault();tgt.zoom=clamp(tgt.zoom*Math.exp(-e.deltaY*.004),.4,3);dirty=true;return}
+  if(e.target.closest&&e.target.closest('#inspector,#menu,.copy'))return;
+  const now=performance.now();if(now<wheelLock)return;
+  wheelAcc+=e.deltaY;if(Math.abs(wheelAcc)>90){wheelAcc>0?next():prev();wheelAcc=0;wheelLock=now+800}
+},{passive:false});
+let sw=null;
+$('deck').addEventListener('touchstart',e=>{if(e.touches.length===1)sw=[e.touches[0].clientX,e.touches[0].clientY]},{passive:true});
+$('deck').addEventListener('touchend',e=>{if(!sw)return;const t=e.changedTouches[0],dx=t.clientX-sw[0],dy=t.clientY-sw[1];sw=null;if(Math.abs(dx)>64&&Math.abs(dx)>Math.abs(dy)*1.6&&!(e.target.matches&&e.target.matches('input')))dx<0?next():prev()},{passive:true});
+addEventListener('resize',resize);
+addEventListener('hashchange',()=>{const i=SLIDES.findIndex(s=>'#'+s.id===location.hash);if(i>=0&&i!==idx)goto(i)});
+
+/* ---------- start ---------- */
+resize();setRatio(IDEAL);setSeq('ABAB');renderDensity();renderQuiz();
+const startAt=SLIDES.findIndex(s=>'#'+s.id===location.hash);
+idx=startAt>=0?startAt:0;step=0;
+const first={...BASE,...(SLIDES[idx].base||{}),...SLIDES[idx].steps[0],...(SLIDES[idx].dyn?SLIDES[idx].dyn():{})};
+Object.assign(want,{mode:first.mode,struct:first.struct,rep:first.rep});live={...want};
+for(const k of NUM){cur[k]=tgt[k]=first[k]}
+tgt.spin=first.spin;fade=0;fadeDir=1;
+goto(idx);
+const h0=slideEl(idx).querySelector('[data-hole]');if(h0){const r=h0.getBoundingClientRect();cur.hx=r.left;cur.hy=r.top;cur.hw=r.width;cur.hh=r.height}
+requestAnimationFrame(t=>{last=t;frame(t)});
+})();
+</script>
